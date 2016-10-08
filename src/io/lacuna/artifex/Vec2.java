@@ -1,5 +1,7 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Hash;
+
 /**
  * @author ztellman
  */
@@ -50,6 +52,16 @@ public class Vec2 {
     return new Vec4(x, y, z, w);
   }
 
+  public Vec2 rotate(double radians) {
+    double s = Math.sin(radians);
+    double c = Math.cos(radians);
+    return new Vec2((c * x) + (-s * y), (s * x) + (c * y));
+  }
+
+  public Polar2 polar2() {
+    return new Polar2(Math.atan2(y, x), length());
+  }
+
   public Vec2 norm() {
     double l = lengthSquared();
     if (l == 1.0) {
@@ -95,7 +107,7 @@ public class Vec2 {
 
   @Override
   public int hashCode() {
-    return Utils.hash(x, y);
+    return Hash.hash(x, y);
   }
 
   public static boolean equals(Vec2 a, Vec2 b, double epsilon) {

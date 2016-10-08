@@ -1,0 +1,20 @@
+package io.lacuna.artifex;
+
+/**
+ * Created by zach on 10/6/16.
+ */
+public class Polar2 {
+  public final double theta;
+  public final double r;
+
+  public Polar2(double theta, double r) {
+    this.theta = theta;
+    this.r = r;
+  }
+
+  public Vec2 vec2() {
+    double x = Math.cos(theta);
+    double y = Math.sin(theta);
+    return new Vec2(x * r, y * r);
+  }
+}

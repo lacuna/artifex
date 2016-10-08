@@ -1,5 +1,7 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Hash;
+
 /**
  * @author ztellman
  */
@@ -33,7 +35,7 @@ public class Line2 {
 
   @Override
   public int hashCode() {
-    return Utils.hash(slope, intercept);
+    return Hash.hash(slope, intercept);
   }
 
   @Override

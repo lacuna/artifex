@@ -1,5 +1,7 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Hash;
+
 /**
  * @author ztellman
  */
@@ -98,7 +100,7 @@ public class Vec3 {
 
   @Override
   public int hashCode() {
-    return Utils.hash(x, y, z);
+    return Hash.hash(x, y, z);
   }
 
   public static boolean equals(Vec3 a, Vec3 b, double epsilon) {

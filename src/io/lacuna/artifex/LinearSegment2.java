@@ -3,10 +3,10 @@ package io.lacuna.artifex;
 /**
  * @author ztellman
  */
-public class Segment2 {
+public class LinearSegment2 implements Curve2 {
   public final Vec2 a, b;
 
-  public Segment2(Vec2 a, Vec2 b) {
+  public LinearSegment2(Vec2 a, Vec2 b) {
     this.a = a;
     this.b = b;
   }
@@ -17,14 +17,14 @@ public class Segment2 {
     return new Line2(slope, a.y - (a.x * slope));
   }
 
-  public static boolean collinear(Segment2 a, Segment2 b, double epsilon) {
+  public static boolean collinear(LinearSegment2 a, LinearSegment2 b, double epsilon) {
     return Line2.equals(a.line2(), b.line2(), epsilon);
   }
 
   /**
    * @return the point of intersection between the two line segments, or null if none exists or the segments are collinear
    */
-  public static Vec2 intersection(Segment2 p, Segment2 q) {
+  public static Vec2 intersection(LinearSegment2 p, LinearSegment2 q) {
     Vec2 pv = p.b.sub(p.a);
     Vec2 qv = q.b.sub(q.a);
 
@@ -44,20 +44,41 @@ public class Segment2 {
     return null;
   }
 
+  @Override
+  public Vec2 position(double t) {
+    return Vec2.lerp(a, b, t);
+  }
+
+  @Override
+  public Vec2 direction(double t) {
+    return b.sub(a);
+  }
+
+  @Override
+  public Curve2[] split(double t) {
+    Vec2 v = position(t);
+    return new LinearSegment2[] {new LinearSegment2(a, v), new LinearSegment2(v, b)};
+  }
+
+  @Override
+  public double nearestPoint(Vec2 p) {
+    Vec2 bSa = b.sub(a);
+    Vec2 pSa = p.sub(a);
+    return Vec2.dot(bSa, pSa) / bSa.lengthSquared();
+  }
+
   /**
    * @return the distance from this segment to the point
    */
   public double distance(Vec2 p) {
-    Vec2 bSa = b.sub(a);
-    Vec2 pSa = p.sub(a);
-    double t = Vec2.dot(bSa, pSa) / bSa.lengthSquared();
+    double t = nearestPoint(p);
 
-    if (t <= 0) {
+    if (t == 0) {
       return p.sub(a).length();
-    } else if (t >= 1) {
+    } else if (t == 1) {
       return p.sub(b).length();
     } else {
-      return bSa.mul(t).add(a).length();
+      return p.sub(b.sub(a).mul(t)).length();
     }
   }
 
@@ -68,8 +89,8 @@ public class Segment2 {
 
   @Override
   public boolean equals(Object obj) {
-    if (obj instanceof Segment2) {
-      Segment2 s = (Segment2) obj;
+    if (obj instanceof LinearSegment2) {
+      LinearSegment2 s = (LinearSegment2) obj;
       return a.equals(s.a) && b.equals(s.b);
     }
     return false;

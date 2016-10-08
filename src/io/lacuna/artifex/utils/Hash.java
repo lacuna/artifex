@@ -1,10 +1,9 @@
-package io.lacuna.artifex;
+package io.lacuna.artifex.utils;
 
 /**
  * @author ztellman
  */
-class Utils {
-
+public class Hash {
   public static int hash(double x, double y) {
     long hash = 1L;
     hash = (hash * 31) + Double.doubleToLongBits(x);
