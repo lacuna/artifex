@@ -1,9 +1,8 @@
 package io.lacuna.artifex;
 
-import javax.sound.sampled.Line;
-
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.Vec2.dot;
+import static io.lacuna.artifex.Vec2.lerp;
 import static io.lacuna.artifex.utils.Equations.solveCubic;
 import static java.lang.Math.abs;
 import static java.lang.Math.signum;
@@ -56,9 +55,9 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
-      Vec2 e = Vec2.lerp(p0, p1, t);
-      Vec2 f = Vec2.lerp(p1, p2, t);
-      Vec2 g = Vec2.lerp(e, f, t);
+      Vec2 e = lerp(p0, p1, t);
+      Vec2 f = lerp(p1, p2, t);
+      Vec2 g = lerp(e, f, t);
       return new QuadraticBezier2[]{Bezier2.from(p0, e, g), Bezier2.from(g, f, p2)};
     }
 
@@ -72,12 +71,6 @@ public class Bezier2 {
       Vec2 ac = p2.sub(p0);
       Vec2 br = p0.add(p2).sub(p1).sub(p1);
 
-      double a = dot(br, br);
-      double b = 3 * dot(ab, br);
-      double c = (2 * dot(ab, ab)) + dot(qa, br);
-      double d = dot(qa, ab);
-
-      double[] ts = solveCubic(a, b, c, d);
       double minDistance = signum(cross(ab, qa)) * qa.length();
       double param = -dot(qa, ab) / dot(ab, ab);
 
@@ -86,6 +79,12 @@ public class Bezier2 {
         minDistance = distance;
         param = dot(p.sub(p1), bc) / dot(bc, bc);
       }
+
+      double a = dot(br, br);
+      double b = 3 * dot(ab, br);
+      double c = (2 * dot(ab, ab)) + dot(qa, br);
+      double d = dot(qa, ab);
+      double[] ts = solveCubic(a, b, c, d);
 
       for (double t : ts) {
         if (t > 0 && t < 1) {
@@ -104,8 +103,8 @@ public class Bezier2 {
 
   public static class CubicBezier2 implements Curve2 {
 
-    private static final int SEARCH_STARTS = 4;
-    private static final int SEARCH_STEPS = 4;
+    private static final int SEARCH_STARTS = 8;
+    private static final int SEARCH_STEPS = 8;
 
     private final Vec2 p0, p1, p2, p3;
 
@@ -141,12 +140,12 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
-      Vec2 e = Vec2.lerp(p0, p1, t);
-      Vec2 f = Vec2.lerp(p1, p2, t);
-      Vec2 g = Vec2.lerp(p2, p3, t);
-      Vec2 h = Vec2.lerp(e, f, t);
-      Vec2 j = Vec2.lerp(f, g, t);
-      Vec2 k = Vec2.lerp(f, j, t);
+      Vec2 e = lerp(p0, p1, t);
+      Vec2 f = lerp(p1, p2, t);
+      Vec2 g = lerp(p2, p3, t);
+      Vec2 h = lerp(e, f, t);
+      Vec2 j = lerp(f, g, t);
+      Vec2 k = lerp(h, j, t);
       return new CubicBezier2[]{Bezier2.from(p0, e, h, k), Bezier2.from(k, j, g, p3)};
     }
 

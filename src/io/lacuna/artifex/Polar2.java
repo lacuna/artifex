@@ -1,7 +1,7 @@
 package io.lacuna.artifex;
 
 /**
- * Created by zach on 10/6/16.
+ * @author ztellman
  */
 public class Polar2 {
   public final double theta;

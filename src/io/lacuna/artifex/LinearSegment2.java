@@ -11,12 +11,19 @@ public class LinearSegment2 implements Curve2 {
     this.b = b;
   }
 
+  /**
+   * @return the unbounded line that overlays this segment
+   */
   public Line2 line2() {
     Vec2 v = b.sub(a);
     double slope = v.y / v.x;
     return new Line2(slope, a.y - (a.x * slope));
   }
 
+  /**
+   * @param epsilon the error margin for determining collinearity
+   * @return true, if the segments are collinear, false otherwise
+   */
   public static boolean collinear(LinearSegment2 a, LinearSegment2 b, double epsilon) {
     return Line2.equals(a.line2(), b.line2(), epsilon);
   }
@@ -57,7 +64,7 @@ public class LinearSegment2 implements Curve2 {
   @Override
   public Curve2[] split(double t) {
     Vec2 v = position(t);
-    return new LinearSegment2[] {new LinearSegment2(a, v), new LinearSegment2(v, b)};
+    return new LinearSegment2[]{new LinearSegment2(a, v), new LinearSegment2(v, b)};
   }
 
   @Override
@@ -68,14 +75,15 @@ public class LinearSegment2 implements Curve2 {
   }
 
   /**
+   * @param p a point in 2D space
    * @return the distance from this segment to the point
    */
   public double distance(Vec2 p) {
     double t = nearestPoint(p);
 
-    if (t == 0) {
+    if (t <= 0) {
       return p.sub(a).length();
-    } else if (t == 1) {
+    } else if (t >= 1) {
       return p.sub(b).length();
     } else {
       return p.sub(b.sub(a).mul(t)).length();

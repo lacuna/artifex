@@ -4,6 +4,7 @@
   (:import
    [io.lacuna.artifex
     SegmentRing2
+    Curve2
     Bezier2
     Line2
     Vec2
@@ -105,8 +106,61 @@
 
       cubic 0.5 [1 0])
 
-    ;; split
-
-
-    ;; nearest point
     ))
+
+;;;
+
+(defn sample-curve [^Curve2 c n]
+  (->> (range n)
+    (map #(/ % (dec n)))
+    (map #(.position c %))))
+
+(defn split-and-check [^Curve2 c t n]
+  (let [[a b] (seq (.split c t))
+        pa (sample-curve a n)
+        pb (sample-curve b n)
+        ts (concat
+             (->> (range n)
+               (map #(* t (/ % (dec n)))))
+             (->> (range n)
+               (map #(+ t (* (- 1 t) (/ % (dec n)))))))]
+    (doseq [[a b] (->> ts
+                    (map #(.position c %))
+                    (map vector (concat pa pb)))]
+      (is (Vec2/equals a b 1e-14)))))
+
+(deftest test-curve-split
+  (let [linear (Bezier2/from (v 0 0) (v 1 1))
+        quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
+        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
+        splits (->> (range 1 10) (map #(/ 1 %)) (map double))]
+    (doseq [t splits]
+      (split-and-check linear t 100)
+      (split-and-check quad t 100)
+      (split-and-check cubic t 100))))
+
+;;;
+
+(defn nearest-point [^Curve2 c ^Vec2 v]
+  (->> (range (inc 1e3))
+    (map #(/ % 1e3))
+    (map double)
+    (sort-by #(-> (.position c %) (.sub v) .lengthSquared))
+    first))
+
+(defn random-vector [min max]
+  (let [x (+ min (* (rand) (- max min)))
+        y (+ min (* (rand) (- max min)))]
+    (v x y)))
+
+(deftest test-nearest-point
+  (let [linear (Bezier2/from (v 0 0) (v 1 1))
+        quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
+        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))]
+    (doseq [v (repeatedly 1e3 #(random-vector -5 5))]
+      (doseq [c [linear quad cubic]]
+        (let [t0 (nearest-point c v)
+              t1 (max 0 (min 1 (.nearestPoint c v)))
+              d0 (-> (.position c t0) (.sub v) .length)
+              d1 (-> (.position c t1) (.sub v) .length)]
+          (is (< (Math/abs (- d0 d1)) 1e-2)))))))
