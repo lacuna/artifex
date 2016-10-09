@@ -1,0 +1,6 @@
+sudo: required
+dist: trusty
+language: clojure
+script: lein do clean, test
+jdk:
+  - oraclejdk8
