@@ -4,6 +4,7 @@
   (:import
    [io.lacuna.artifex
     SegmentRing2
+    CircularSegment2
     Curve2
     Bezier2
     Line2
@@ -35,6 +36,11 @@
     Vec4 [(.x v) (.y v) (.z v) (.w v)]))
 
 ;;;
+
+(deftest test-angle-between
+  (let [half-pi (/ Math/PI 2)]
+    (is (= (- half-pi) (Vec2/angleBetween (v -1 0) (v 0 1))))
+    (is (= (* -3 half-pi) (Vec2/angleBetween (v 0 1) (v -1 0))))))
 
 (deftest test-vector-arithmetic
   (are [expected op a b]
@@ -79,32 +85,41 @@
     false [[0 0] [1 0] [1 1] [0.9 0.5]]
     true  [[0 0] [1 0] [1 1] [0 1]]))
 
-(deftest test-bezier
-  (let [quad  (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
-        cubic (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
-        isq2  (/ 1 (Math/sqrt 2))]
+(deftest test-curves
+  (let [quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
+        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
+        circle (CircularSegment2/from (v 0 -1) (v 0 1) 1)
+        isq2   (/ 1 (Math/sqrt 2))]
 
     ;; position
     (are [b t coords]
         (Vec2/equals (apply v coords) (.position b t) 1e-14)
 
-      quad  0   [0 0]
-      quad  0.5 [1 0.5]
-      quad  1   [2 0]
+      circle 0   [0 -1]
+      circle 0.5 [-1 0]
+      circle 1   [0 1]
 
-      cubic 0   [0 0]
-      cubic 0.5 [1.5 0.75]
-      cubic 1   [3 0])
+      quad   0   [0 0]
+      quad   0.5 [1 0.5]
+      quad   1   [2 0]
+
+      cubic  0   [0 0]
+      cubic  0.5 [1.5 0.75]
+      cubic  1   [3 0])
 
     ;; direction
     (are [b t coords]
         (Vec2/equals (apply v coords) (.norm (.direction b t)) 1e-14)
 
-      quad  0   [isq2 isq2]
-      quad  0.5 [1 0]
-      quad  1   [isq2 (- isq2)]
+      circle 0   [-1 0]
+      circle 0.5 [0 1]
+      circle 1   [1 0]
 
-      cubic 0.5 [1 0])
+      quad   0   [isq2 isq2]
+      quad   0.5 [1 0]
+      quad   1   [isq2 (- isq2)]
+
+      cubic  0.5 [1 0])
 
     ))
 
@@ -133,11 +148,11 @@
   (let [linear (Bezier2/from (v 0 0) (v 1 1))
         quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
         cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
+        circle (CircularSegment2/from (v 0 -1) (v 0 1) 1)
         splits (->> (range 1 10) (map #(/ 1 %)) (map double))]
     (doseq [t splits]
-      (split-and-check linear t 100)
-      (split-and-check quad t 100)
-      (split-and-check cubic t 100))))
+      (doseq [c [linear quad cubic circle]]
+        (split-and-check c t 100)))))
 
 ;;;
 
@@ -156,9 +171,10 @@
 (deftest test-nearest-point
   (let [linear (Bezier2/from (v 0 0) (v 1 1))
         quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
-        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))]
+        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
+        circle (CircularSegment2/from (v 0 -1) (v 0 1) 1)]
     (doseq [v (repeatedly 1e3 #(random-vector -5 5))]
-      (doseq [c [linear quad cubic]]
+      (doseq [c [linear quad cubic circle]]
         (let [t0 (nearest-point c v)
               t1 (max 0 (min 1 (.nearestPoint c v)))
               d0 (-> (.position c t0) (.sub v) .length)

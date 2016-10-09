@@ -58,6 +58,16 @@ public class Vec2 {
     return new Vec2((c * x) + (-s * y), (s * x) + (c * y));
   }
 
+  public static double angleBetween(Vec2 a, Vec2 b) {
+    Vec2 na = a.norm();
+    Vec2 nb = b.norm();
+    double theta = Math.acos(dot(na, nb));
+    if (cross(na, nb) > 0) {
+      theta = (Math.PI * 2) - theta;
+    }
+    return -theta;
+  }
+
   public Polar2 polar2() {
     return new Polar2(Math.atan2(y, x), length());
   }
