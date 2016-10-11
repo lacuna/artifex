@@ -3,6 +3,7 @@
    [clojure.test :refer :all])
   (:import
    [io.lacuna.artifex
+    Box2
     SegmentRing2
     CircularSegment2
     Curve2
@@ -28,6 +29,14 @@
     (map #(apply v %))
     vec
     SegmentRing2.))
+
+(defn bezier
+  ([a b]
+   (Bezier2/from a b))
+  ([a b c]
+   (Bezier2/from a b c))
+  ([a b c d]
+   (Bezier2/from a b c d)))
 
 (defn unvertex [v]
   (condp instance? v
@@ -180,3 +189,21 @@
               d0 (-> (.position c t0) (.sub v) .length)
               d1 (-> (.position c t1) (.sub v) .length)]
           (is (< (Math/abs (- d0 d1)) 1e-2)))))))
+
+;;;
+
+(defn sampled-bounds [^Curve2 c n]
+  (->> (range n)
+    (map #(/ % (dec n)))
+    (map #(.position c %))
+    (reduce #(.union ^Box2 %1 ^Vec2 %2) Box2/EMPTY)))
+
+(defn check-bounds [^Curve2 c]
+  (let [bounds (.bounds c)]
+    (is (Box2/equals bounds (.union bounds (sampled-bounds c 100)) 1e-14))))
+
+(deftest test-bounds
+  ;; TODO: test CircularSegment2, also
+  (doseq [points [2 3 4]]
+    (dotimes [_ 1e3]
+      (check-bounds (apply bezier (repeatedly points #(random-vector -10 10)))))))

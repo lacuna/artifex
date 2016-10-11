@@ -29,4 +29,6 @@ public interface Curve2 {
    * outside that range, it indicates the distance from the respective endpoints.
    */
   double nearestPoint(Vec2 p);
+
+  Box2 bounds();
 }

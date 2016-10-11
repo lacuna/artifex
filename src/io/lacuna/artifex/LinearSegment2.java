@@ -74,6 +74,11 @@ public class LinearSegment2 implements Curve2 {
     return Vec2.dot(bSa, pSa) / bSa.lengthSquared();
   }
 
+  @Override
+  public Box2 bounds() {
+    return Box2.from(a, b);
+  }
+
   /**
    * @param p a point in 2D space
    * @return the distance from this segment to the point

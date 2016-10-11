@@ -1,18 +1,12 @@
 package io.lacuna.artifex;
 
-import static io.lacuna.artifex.Vec2.cross;
-import static io.lacuna.artifex.Vec2.dot;
-import static java.lang.Math.atan2;
-
 /**
  * @author ztellman
  */
 public class CircularSegment2 implements Curve2 {
 
-  public final Vec2 c;
-  private final Vec2 ca;
-  public final double theta;
-  private final double r;
+  private final Vec2 c, ca;
+  private final double theta, r;
 
   /**
    * @param a a point on the circle
@@ -71,5 +65,11 @@ public class CircularSegment2 implements Curve2 {
       t = threshold - t;
     }
     return t;
+  }
+
+  @Override
+  public Box2 bounds() {
+    // todo: also include inflection points
+    return Box2.from(position(0), position(1));
   }
 }

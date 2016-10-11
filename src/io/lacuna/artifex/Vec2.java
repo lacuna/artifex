@@ -52,12 +52,18 @@ public class Vec2 {
     return new Vec4(x, y, z, w);
   }
 
+  /**
+   * @return a rotated vector
+   */
   public Vec2 rotate(double radians) {
     double s = Math.sin(radians);
     double c = Math.cos(radians);
     return new Vec2((c * x) + (-s * y), (s * x) + (c * y));
   }
 
+  /**
+   * @return the clockwise angle between the two vectors, which don't have to be normalized
+   */
   public static double angleBetween(Vec2 a, Vec2 b) {
     Vec2 na = a.norm();
     Vec2 nb = b.norm();
@@ -72,6 +78,9 @@ public class Vec2 {
     return new Polar2(Math.atan2(y, x), length());
   }
 
+  /**
+   * @return a normalized vector, with a length of 1
+   */
   public Vec2 norm() {
     double l = lengthSquared();
     if (l == 1.0) {
@@ -81,10 +90,16 @@ public class Vec2 {
     }
   }
 
+  /**
+   * @return the square of the vector's length
+   */
   public double lengthSquared() {
     return (x * x) + (y * y);
   }
 
+  /**
+   * @return the vector's length
+   */
   public double length() {
     return Math.sqrt(lengthSquared());
   }
