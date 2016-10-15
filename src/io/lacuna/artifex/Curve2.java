@@ -31,4 +31,6 @@ public interface Curve2 {
   double nearestPoint(Vec2 p);
 
   Box2 bounds();
+
+  Curve2 transform(Matrix3 m);
 }

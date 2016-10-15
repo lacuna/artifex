@@ -1,5 +1,6 @@
 package io.lacuna.artifex;
 
+import java.awt.image.BufferedImage;
 import java.util.*;
 
 import static io.lacuna.artifex.Vec2.cross;
@@ -16,20 +17,21 @@ public class DistanceField {
 
   private static final byte BLACK = 0, RED = 1, GREEN = 2, YELLOW = 3, BLUE = 4, MAGENTA = 5, CYAN = 6, WHITE = 7;
 
-  private static class SignedDistance implements Comparable<SignedDistance> {
-    private final double distSquared;
-    private final double pseudoDistSquared;
-    private final double dot;
-    private boolean inside;
+  public static class SignedDistance implements Comparable<SignedDistance> {
+    public final double distSquared;
+    public final double pseudoDistSquared;
+    public final double dot;
+    public boolean inside;
 
-    public SignedDistance(Curve2 curve, double param, Vec2 origin) {
+    public SignedDistance(Curve2 curve, Vec2 origin) {
+      double param = curve.nearestPoint(origin);
       double clampedParam = min(1, max(0, param));
       Vec2 pos = curve.position(clampedParam);
       Vec2 dir = curve.direction(clampedParam).norm();
       Vec2 pSo = pos.sub(origin);
 
       distSquared = pSo.lengthSquared();
-      inside = cross(dir, origin.sub(pos)) < 0;
+      inside = cross(dir, pSo) > 0;
 
       if (param == clampedParam) {
         dot = 0;
@@ -42,7 +44,6 @@ public class DistanceField {
         if (signum(ts) == signum(param)) {
           double pseudoDistance = cross(pSo, dir);
           pseudoDistSquared = pseudoDistance * pseudoDistance;
-          inside = pseudoDistance <= 0;
         } else {
           pseudoDistSquared = -1;
         }
@@ -66,20 +67,6 @@ public class DistanceField {
         return (int) signum(dot - o.dot);
       }
     }
-  }
-
-  private static SignedDistance signedDistance(Iterable<Curve2> curves, Vec2 p) {
-    SignedDistance closest = null;
-
-    for (Curve2 c : curves) {
-      double param = c.nearestPoint(p);
-      SignedDistance d = new SignedDistance(c, param, p);
-      if (closest == null || d.compareTo(closest) < 0) {
-        closest = d;
-      }
-    }
-
-    return closest;
   }
 
   private static boolean isCorner(Curve2 a, Curve2 b, double crossThreshold) {
@@ -111,35 +98,35 @@ public class DistanceField {
     return new Curve2[]{a[0], b[1], b[2]};
   }
 
-  private static Map<Curve2, Byte> edgeColors(List<Curve2> curves, double angleThreshold) {
+  private static Map<Curve2, Byte> edgeColors(List<Curve2> ring, double angleThreshold) {
     Map<Curve2, Byte> edgeColors = new HashMap<>();
-    List<Integer> corners = cornerIndices(curves, angleThreshold);
+    List<Integer> corners = cornerIndices(ring, angleThreshold);
 
     if (corners.isEmpty()) {
       // smooth contour
-      for (Curve2 c : curves) {
+      for (Curve2 c : ring) {
         edgeColors.put(c, WHITE);
       }
     } else if (corners.size() == 1) {
       // teardrop
       int offset = corners.get(0);
       byte[] colors = {MAGENTA, WHITE, YELLOW};
-      int num = curves.size();
+      int num = ring.size();
 
       if (num >= 3) {
         for (int i = 0; i < num; i++) {
-          Curve2 c = curves.get((i + offset) % num);
-          int colorIdx = (int) (((3 + ((2.875 * i) / (num - 1))) - 1.4375) + .5) - 3;
+          Curve2 c = ring.get((i + offset) % num);
+          int colorIdx = (int) (((3 + ((2.875 * i) / (num - 1))) - 1.4375) + .5) - 2;
           edgeColors.put(c, colors[colorIdx]);
         }
       } else if (num == 2) {
-        Curve2[] a = splitIntoThirds(curves.get(0));
-        Curve2[] b = splitIntoThirds(curves.get(1));
+        Curve2[] a = splitIntoThirds(ring.get(0));
+        Curve2[] b = splitIntoThirds(ring.get(1));
         for (int i = 0; i < 6; i++) {
           edgeColors.put(i < 3 ? a[i] : b[i - 3], colors[i / 2]);
         }
       } else {
-        Curve2[] thirds = splitIntoThirds(curves.get(0));
+        Curve2[] thirds = splitIntoThirds(ring.get(0));
         for (int i = 0; i < 3; i++) {
           edgeColors.put(thirds[i], colors[i]);
         }
@@ -150,16 +137,141 @@ public class DistanceField {
       int cIdx = 0;
       byte[] colors = new byte[]{corners.size() % 3 == 1 ? YELLOW : CYAN, CYAN, MAGENTA, YELLOW};
 
-      for (int i = 0; i < curves.size(); i++) {
-        int idx = (i + offset) % curves.size();
+      for (int i = 0; i < ring.size(); i++) {
+        int idx = (i + offset) % ring.size();
         if (cIdx + 1 < corners.size() && corners.get(cIdx + 1) == idx) {
           cIdx++;
         }
-        edgeColors.put(curves.get(idx), colors[(cIdx % 3) - (cIdx == 0 ? 1 : 0)]);
+        edgeColors.put(ring.get(idx), colors[1 + (cIdx % 3) - (cIdx == 0 ? 1 : 0)]);
       }
     }
 
     return edgeColors;
+  }
+
+  public static float[][][] distanceField(
+          Iterable<List<Curve2>> curveRings,
+          int w,
+          int h,
+          Box2 bounds,
+          double angleThreshold,
+          float scale) {
+    float[][][] field = new float[w][h][3];
+
+    Map<Curve2, Byte> curves = new HashMap<>();
+    for (List<Curve2> ring : curveRings) {
+      curves.putAll(edgeColors(ring, angleThreshold));
+    }
+
+    for (int x = 0; x < w; x++) {
+      for (int y = 0; y < h; y++) {
+        SignedDistance r, g, b;
+        r = g = b = null;
+        Vec2 t = new Vec2((x + 0.5) / (w + 1), (y + 0.5) / (h + 1));
+        Vec2 p = bounds.lerp(t);
+
+        for (Curve2 c : curves.keySet()) {
+          byte color = curves.get(c);
+          SignedDistance d = new SignedDistance(c, p);
+
+          if ((color & RED) > 0 && (r == null || r.compareTo(d) > 0)) {
+            r = d;
+          }
+          if ((color & GREEN) > 0 && (g == null || g.compareTo(d) > 0)) {
+            g = d;
+          }
+          if ((color & BLUE) > 0 && (b == null || b.compareTo(d) > 0)) {
+            b = d;
+          }
+        }
+
+        field[x][y][0] = r != null ? (float) r.pseudoDistance() : 0f;
+        field[x][y][1] = g != null ? (float) g.pseudoDistance() : 0f;
+        field[x][y][2] = b != null ? (float) b.pseudoDistance() : 0f;
+
+        for (int z = 0; z < 3; z++) {
+          field[x][y][z] = min(1f, max(0f, (field[x][y][z] / (scale * 2)) + 0.5f));
+        }
+      }
+    }
+
+    return field;
+  }
+
+  public static float[][][] distanceField(Iterable<List<Curve2>> curveRings, int w, int h) {
+    Box2 b = Box2.EMPTY;
+    for (List<Curve2> curves : curveRings) {
+      for (Curve2 c : curves) {
+        b = b.union(c.bounds());
+      }
+    }
+    b = new Box2(b.left - 1, b.right + 1, b.bottom - 1, b.top + 1);
+    
+    return distanceField(curveRings, w, h, b, Math.toRadians(3), 0.25f);
+  }
+
+  public static BufferedImage fieldImage(float[][][] field) {
+    int w = field.length;
+    int h = field[0].length;
+
+    BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_3BYTE_BGR);
+    for (int x = 0; x < w; x++) {
+      for (int y = 0; y < h; y++) {
+        int color = 0;
+        for (int z = 0; z < 3; z++) {
+          color <<= 8;
+          color += (int) (255 * field[x][y][z]);
+        }
+        image.setRGB(x, y, color);
+      }
+    }
+    return image;
+  }
+
+  private static double median(double a, double b, double c) {
+    if (a < b) {
+      return b < c ? b : c;
+    } else {
+      return a < c ? a : c;
+    }
+  }
+
+  private static Vec3 pixel(BufferedImage image, int x, int y) {
+    int color = image.getRGB(x, y);
+    return new Vec3(
+            ((color >> 16) & 0xFF) / 255f,
+            ((color >> 8) & 0xFF) / 255f,
+            (color & 0xFF) / 255f);
+  }
+
+  public static Vec3 blit(BufferedImage image, double x, double y) {
+
+    int x1 = (int) (x * image.getWidth());
+    int x2 = min(image.getWidth() - 1, x1 + 1);
+    int y1 = (int) (y * image.getHeight());
+    int y2 = min(image.getHeight() - 1, y1 + 1);
+
+    double xt = (x * image.getWidth()) - x1;
+    double yt = (y * image.getHeight()) - y1;
+
+    return Vec3.lerp(
+            Vec3.lerp(pixel(image, x1, y1), pixel(image, x1, y2), yt),
+            Vec3.lerp(pixel(image, x2, y1), pixel(image, x2, y2), yt),
+            xt);
+  }
+
+  public static BufferedImage renderField(BufferedImage fieldImage, int w, int h, float blur) {
+    BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_USHORT_GRAY);
+    for (int x = 0; x < w; x++) {
+      for (int y = 0; y < h; y++) {
+        Vec3 color = blit(fieldImage, ((double) x) / w, ((double) y) / h);
+        double val = median(color.x, color.y, color.z);
+        double lo = 0.5f - blur / 2;
+        val = min(1, max(0, (val - lo) / blur));
+        image.setRGB(x, y, (int) (val * Short.MAX_VALUE * 2));
+      }
+    }
+    return image;
   }
 
 

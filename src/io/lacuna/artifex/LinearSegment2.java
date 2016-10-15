@@ -12,23 +12,6 @@ public class LinearSegment2 implements Curve2 {
   }
 
   /**
-   * @return the unbounded line that overlays this segment
-   */
-  public Line2 line2() {
-    Vec2 v = b.sub(a);
-    double slope = v.y / v.x;
-    return new Line2(slope, a.y - (a.x * slope));
-  }
-
-  /**
-   * @param epsilon the error margin for determining collinearity
-   * @return true, if the segments are collinear, false otherwise
-   */
-  public static boolean collinear(LinearSegment2 a, LinearSegment2 b, double epsilon) {
-    return Line2.equals(a.line2(), b.line2(), epsilon);
-  }
-
-  /**
    * @return the point of intersection between the two line segments, or null if none exists or the segments are collinear
    */
   public static Vec2 intersection(LinearSegment2 p, LinearSegment2 q) {
@@ -49,6 +32,10 @@ public class LinearSegment2 implements Curve2 {
     }
 
     return null;
+  }
+
+  public LinearSegment2 transform(Matrix3 m) {
+    return new LinearSegment2(m.transform(a), m.transform(b));
   }
 
   @Override

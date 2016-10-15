@@ -8,6 +8,8 @@ import io.lacuna.artifex.utils.Hash;
 public class Vec2 {
 
   public final static Vec2 ORIGIN = new Vec2(0, 0);
+  public static final Vec2 X_AXIS = new Vec2(1, 0);
+  public static final Vec2 Y_AXIS = new Vec2(0, 1);
 
   public final double x, y;
 
@@ -50,6 +52,10 @@ public class Vec2 {
 
   public Vec4 vec4(double z, double w) {
     return new Vec4(x, y, z, w);
+  }
+
+  public Vec2 transform(Matrix3 m) {
+    return m.transform(this);
   }
 
   /**

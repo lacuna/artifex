@@ -1,10 +1,12 @@
 package io.lacuna.artifex;
 
-import static io.lacuna.artifex.Vec2.lerp;
+import static io.lacuna.artifex.Vec2.cross;
+import static io.lacuna.artifex.Vec2.dot;
 import static io.lacuna.artifex.utils.Equations.solveCubic;
 import static io.lacuna.artifex.utils.Equations.solveQuadratic;
 import static java.lang.Math.abs;
-import static java.lang.Math.signum;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 /**
  * Much of the implementation here is adapted from https://github.com/Chlumsky/msdfgen, which is available under the MIT
@@ -24,6 +26,11 @@ public class Bezier2 {
 
   public static CubicBezier2 from(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
     return new CubicBezier2(p0, p1, p2, p3);
+  }
+
+  private static double sign(double n) {
+    double s = Math.signum(n);
+    return s == 0 ? -1 : s;
   }
 
   static class QuadraticBezier2 implements Curve2 {
@@ -73,25 +80,25 @@ public class Bezier2 {
       Vec2 ac = p2.sub(p0);
       Vec2 br = p0.add(p2).sub(p1).sub(p1);
 
-      double minDistance = Math.signum(Vec2.cross(ab, qa)) * qa.length();
-      double param = -Vec2.dot(qa, ab) / Vec2.dot(ab, ab);
+      double minDistance = sign(cross(ab, qa)) * qa.length();
+      double param = -dot(qa, ab) / dot(ab, ab);
 
-      double distance = Math.signum(Vec2.cross(bc, qc)) * qc.length();
+      double distance = sign(cross(bc, qc)) * qc.length();
       if (abs(distance) < abs(minDistance)) {
         minDistance = distance;
-        param = Vec2.dot(p.sub(p1), bc) / Vec2.dot(bc, bc);
+        param = max(1, dot(p.sub(p1), bc) / dot(bc, bc));
       }
 
-      double a = Vec2.dot(br, br);
-      double b = 3 * Vec2.dot(ab, br);
-      double c = (2 * Vec2.dot(ab, ab)) + Vec2.dot(qa, br);
-      double d = Vec2.dot(qa, ab);
+      double a = dot(br, br);
+      double b = 3 * dot(ab, br);
+      double c = (2 * dot(ab, ab)) + dot(qa, br);
+      double d = dot(qa, ab);
       double[] ts = solveCubic(a, b, c, d);
 
       for (double t : ts) {
         if (t > 0 && t < 1) {
-          Vec2 endpoint = p0.add(ab.mul(2 * t)).add(br.mul(t * t));
-          distance = Math.signum(Vec2.cross(ac, endpoint.sub(p))) * endpoint.sub(p).length();
+          Vec2 endpoint = position(t);
+          distance = sign(cross(ac, endpoint.sub(p))) * endpoint.sub(p).length();
           if (abs(distance) < abs(minDistance)) {
             minDistance = distance;
             param = t;
@@ -117,6 +124,11 @@ public class Bezier2 {
       }
 
       return bounds;
+    }
+
+    @Override
+    public Curve2 transform(Matrix3 m) {
+      return new QuadraticBezier2(p0.transform(m), p1.transform(m), p2.transform(m));
     }
   }
 
@@ -178,20 +190,20 @@ public class Bezier2 {
       Vec2 br = bc.sub(ab);
       Vec2 as = cd.sub(bc).sub(br);
 
-      double minDistance = Math.signum(Vec2.cross(ab, qa)) * qa.length();
-      double param = -Vec2.dot(qa, ab) / Vec2.dot(ab, ab);
+      double minDistance = sign(cross(ab, qa)) * qa.length();
+      double param = -dot(qa, ab) / dot(ab, ab);
 
-      double distance = Math.signum(Vec2.cross(cd, qd)) * qd.length();
+      double distance = sign(cross(cd, qd)) * qd.length();
       if (abs(distance) < abs(minDistance)) {
         minDistance = distance;
-        param = Vec2.dot(p.sub(p2), cd) / Vec2.dot(cd, cd);
+        param = max(1, dot(p.sub(p2), cd) / dot(cd, cd));
       }
 
       for (int i = 0; i < SEARCH_STARTS; i++) {
         double t = (double) i / SEARCH_STARTS;
         for (int step = 0; ; step++) {
           Vec2 qpt = position(t).sub(p);
-          distance = Math.signum(Vec2.cross(direction(t), qpt)) * qpt.length();
+          distance = sign(cross(direction(t), qpt)) * qpt.length();
           if (abs(distance) < abs(minDistance)) {
             minDistance = distance;
             param = t;
@@ -203,7 +215,7 @@ public class Bezier2 {
 
           Vec2 d1 = as.mul(3 * t * t).add(br.mul(6 * t)).add(ab.mul(3));
           Vec2 d2 = as.mul(6 * t).add(br.mul(6));
-          t -= Vec2.dot(qpt, d1) / (Vec2.dot(d1, d1) + Vec2.dot(qpt, d2));
+          t -= dot(qpt, d1) / (dot(d1, d1) + dot(qpt, d2));
           if (t < 0 || t > 1) {
             break;
           }
@@ -236,6 +248,11 @@ public class Bezier2 {
       }
 
       return bounds;
+    }
+
+    @Override
+    public Curve2 transform(Matrix3 m) {
+      return new CubicBezier2(p0.transform(m), p1.transform(m), p2.transform(m), p3.transform(m));
     }
   }
 }

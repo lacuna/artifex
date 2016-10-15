@@ -4,11 +4,10 @@
   (:import
    [io.lacuna.artifex
     Box2
-    SegmentRing2
+    LinearRing2
     CircularSegment2
     Curve2
     Bezier2
-    Line2
     Vec2
     Vec3
     Vec4]))
@@ -21,14 +20,11 @@
   ([x y z w]
    (Vec4. x y z w)))
 
-(defn line [slope intercept]
-  (Line2. slope intercept))
-
 (defn ring2 [& vs]
   (->> vs
     (map #(apply v %))
     vec
-    SegmentRing2.))
+    LinearRing2.))
 
 (defn bezier
   ([a b]
@@ -37,6 +33,10 @@
    (Bezier2/from a b c))
   ([a b c d]
    (Bezier2/from a b c d)))
+
+(defn circular-segment
+  [a b r]
+  (CircularSegment2/from a b r))
 
 (defn unvertex [v]
   (condp instance? v
@@ -186,8 +186,8 @@
       (doseq [c [linear quad cubic circle]]
         (let [t0 (nearest-point c v)
               t1 (max 0 (min 1 (.nearestPoint c v)))
-              d0 (-> (.position c t0) (.sub v) .length)
-              d1 (-> (.position c t1) (.sub v) .length)]
+              d0 (-> c (.position t0) (.sub v) .length)
+              d1 (-> c (.position t1) (.sub v) .length)]
           (is (< (Math/abs (- d0 d1)) 1e-2)))))))
 
 ;;;
@@ -203,7 +203,11 @@
     (is (Box2/equals bounds (.union bounds (sampled-bounds c 100)) 1e-14))))
 
 (deftest test-bounds
-  ;; TODO: test CircularSegment2, also
   (doseq [points [2 3 4]]
     (dotimes [_ 1e3]
-      (check-bounds (apply bezier (repeatedly points #(random-vector -10 10)))))))
+      (check-bounds (apply bezier (repeatedly points #(random-vector -10 10))))))
+
+  (dotimes [_ 1e3]
+    (let [[a b] (repeatedly 2 #(random-vector -10 10))
+          r     (-> b (.sub a) .length (* (+ 0.5 (rand))))]
+      (check-bounds (circular-segment a b r)))))

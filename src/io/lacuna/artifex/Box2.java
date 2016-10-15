@@ -50,11 +50,23 @@ public class Box2 {
     return new Box2(left, right, bottom, top);
   }
 
-  boolean inside(Vec2 v) {
+  public Vec2 centroid() {
+    return new Vec2((left + right) / 2, (bottom + top) + 2);
+  }
+
+  public boolean inside(Vec2 v) {
     if (isEmpty) {
       return false;
     }
     return left <= v.x && v.x <= right && bottom <= v.y && v.y <= top;
+  }
+
+  public Vec2 lerp(Vec2 t) {
+    return new Vec2(left + (right - left) * t.x, bottom + (top - bottom) * t.y);
+  }
+
+  public Vec2 lerp(double t) {
+    return new Vec2(left + (right - left) * t, bottom + (top - bottom) * t);
   }
 
   public Box2 union(Vec2 v) {
