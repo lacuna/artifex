@@ -2,10 +2,14 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hash;
 
+import java.util.function.DoubleBinaryOperator;
+import java.util.function.DoublePredicate;
+import java.util.function.DoubleUnaryOperator;
+
 /**
  * @author ztellman
  */
-public class Vec2 {
+public class Vec2 extends Vec<Vec2> {
 
   public final static Vec2 ORIGIN = new Vec2(0, 0);
   public static final Vec2 X_AXIS = new Vec2(1, 0);
@@ -18,32 +22,29 @@ public class Vec2 {
     this.y = y;
   }
 
-  public Vec2 add(Vec2 v) {
-    return new Vec2(x + v.x, y + v.y);
+  @Override
+  public final Vec2 map(DoubleUnaryOperator f) {
+    return new Vec2(f.applyAsDouble(x), f.applyAsDouble(y));
   }
 
-  public Vec2 sub(Vec2 v) {
-    return new Vec2(x - v.x, y - v.y);
+  @Override
+  public final double reduce(DoubleBinaryOperator f) {
+    return f.applyAsDouble(x, y);
   }
 
-  public Vec2 mul(Vec2 v) {
-    return new Vec2(x * v.x, y * v.y);
+  @Override
+  public final Vec2 zip(final Vec2 v, final DoubleBinaryOperator f) {
+    return new Vec2(f.applyAsDouble(x, v.x), f.applyAsDouble(y, v.y));
   }
 
-  public Vec2 mul(double k) {
-    return new Vec2(x * k, y * k);
+  @Override
+  public boolean every(DoublePredicate f) {
+    return f.test(x) && f.test(y);
   }
 
-  public Vec2 div(Vec2 v) {
-    return new Vec2(x / v.x, y / v.y);
-  }
-
-  public Vec2 div(double k) {
-    return new Vec2(x / k, y / k);
-  }
-
-  public Vec2 abs() {
-    return new Vec2(Math.abs(x), Math.abs(y));
+  @Override
+  public boolean any(DoublePredicate f) {
+    return f.test(x) || f.test(y);
   }
 
   public Vec3 vec3(double z) {
@@ -67,6 +68,10 @@ public class Vec2 {
     return new Vec2((c * x) + (-s * y), (s * x) + (c * y));
   }
 
+  public static double cross(Vec2 a, Vec2 b) {
+    return (a.x * b.y) - (a.y * b.x);
+  }
+
   /**
    * @return the clockwise angle between the two vectors, which don't have to be normalized
    */
@@ -84,66 +89,9 @@ public class Vec2 {
     return new Polar2(Math.atan2(y, x), length());
   }
 
-  /**
-   * @return a normalized vector, with a length of 1
-   */
-  public Vec2 norm() {
-    double l = lengthSquared();
-    if (l == 1.0) {
-      return this;
-    } else {
-      return div(Math.sqrt(l));
-    }
-  }
-
-  /**
-   * @return the square of the vector's length
-   */
-  public double lengthSquared() {
-    return (x * x) + (y * y);
-  }
-
-  /**
-   * @return the vector's length
-   */
-  public double length() {
-    return Math.sqrt(lengthSquared());
-  }
-
-  public Vec2 clamp(double min, double max) {
-    return new Vec2(
-            Math.max(min, Math.min(max, this.x)),
-            Math.max(min, Math.min(max, this.y)));
-  }
-
-  public static Vec2 lerp(Vec2 a, Vec2 b, double t) {
-    return new Vec2(
-            a.x + (b.x - a.x) * t,
-            a.y + (b.y - a.y) * t);
-  }
-
-  public static Vec2 lerp(Vec2 a, Vec2 b, Vec2 t) {
-    return new Vec2(
-            a.x + (b.x - a.x) * t.x,
-            a.y + (b.y - a.y) * t.y);
-  }
-
-  public static double dot(Vec2 a, Vec2 b) {
-    return (a.x * b.x) + (a.y * b.y);
-  }
-
-  public static double cross(Vec2 a, Vec2 b) {
-    return (a.x * b.y) - (a.y * b.x);
-  }
-
   @Override
   public int hashCode() {
     return Hash.hash(x, y);
-  }
-
-  public static boolean equals(Vec2 a, Vec2 b, double epsilon) {
-    return Math.abs(a.x - b.x) <= epsilon
-            && Math.abs(a.y - b.y) <= epsilon;
   }
 
   @Override
@@ -159,4 +107,5 @@ public class Vec2 {
   public String toString() {
     return String.format("[x=%f, y=%f]", x, y);
   }
+
 }

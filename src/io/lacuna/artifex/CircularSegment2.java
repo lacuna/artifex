@@ -1,7 +1,6 @@
 package io.lacuna.artifex;
 
 import static io.lacuna.artifex.Vec2.angleBetween;
-import static io.lacuna.artifex.Vec2.dot;
 import static java.lang.Math.PI;
 
 /**

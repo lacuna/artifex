@@ -9,6 +9,8 @@
     Vec2
     Vec3
     Vec4]
+   [io.lacuna.artifex.utils
+    Images]
    [javax.imageio
     ImageIO]
    [java.awt.image

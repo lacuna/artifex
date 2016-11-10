@@ -8,6 +8,7 @@
     CircularSegment2
     Curve2
     Bezier2
+    Vec
     Vec2
     Vec3
     Vec4]))
@@ -81,7 +82,7 @@
 
     (is (= 0.5 (.area r)))
 
-    (is (Vec2/equals (v 0.66 0.33) (.centroid r) 0.01))
+    (is (Vec/equals (v 0.66 0.33) (.centroid r) 0.01))
 
     (is (= true (->> vs (apply ring2) .isClockwise)))
     (is (= false (->> vs reverse (apply ring2) .isClockwise)))))
@@ -102,7 +103,7 @@
 
     ;; position
     (are [b t coords]
-        (Vec2/equals (apply v coords) (.position b t) 1e-14)
+        (Vec/equals (apply v coords) (.position b t) 1e-14)
 
       circle 0   [0 -1]
       circle 0.5 [-1 0]
@@ -118,7 +119,7 @@
 
     ;; direction
     (are [b t coords]
-        (Vec2/equals (apply v coords) (.norm (.direction b t)) 1e-14)
+        (Vec/equals (apply v coords) (.norm (.direction b t)) 1e-14)
 
       circle 0   [-1 0]
       circle 0.5 [0 1]

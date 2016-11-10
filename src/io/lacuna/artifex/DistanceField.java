@@ -1,12 +1,9 @@
 package io.lacuna.artifex;
 
-import java.awt.image.BufferedImage;
 import java.util.*;
 
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.Vec2.dot;
-import static io.lacuna.artifex.utils.Images.blit;
-import static io.lacuna.artifex.utils.Images.median;
 import static java.lang.Math.*;
 
 /**
@@ -211,38 +208,4 @@ public class DistanceField {
 
     return distanceField(curveRings, w, h, b, Math.toRadians(3), 0.25f);
   }
-
-  public static BufferedImage fieldImage(float[][][] field) {
-    int w = field.length;
-    int h = field[0].length;
-
-    BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_3BYTE_BGR);
-    for (int x = 0; x < w; x++) {
-      for (int y = 0; y < h; y++) {
-        int color = 0;
-        for (int z = 0; z < 3; z++) {
-          color <<= 8;
-          color += (int) (255 * field[x][y][z]);
-        }
-        image.setRGB(x, y, color);
-      }
-    }
-    return image;
-  }
-
-  public static BufferedImage renderField(BufferedImage fieldImage, int w, int h, float blur) {
-    BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_USHORT_GRAY);
-    for (int x = 0; x < w; x++) {
-      for (int y = 0; y < h; y++) {
-        Vec3 color = blit(fieldImage, ((double) x) / w, ((double) y) / h);
-        double val = median(color.x, color.y, color.z);
-        double lo = 0.5f - blur / 2;
-        val = min(1, max(0, (val - lo) / blur));
-        image.setRGB(x, y, (int) (val * Short.MAX_VALUE * 2));
-      }
-    }
-    return image;
-  }
-
-
 }

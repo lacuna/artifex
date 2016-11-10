@@ -1,12 +1,12 @@
 package io.lacuna.artifex;
 
+import static io.lacuna.artifex.Vec.dot;
+import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec2.cross;
-import static io.lacuna.artifex.Vec2.dot;
 import static io.lacuna.artifex.utils.Equations.solveCubic;
 import static io.lacuna.artifex.utils.Equations.solveQuadratic;
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
-import static java.lang.Math.min;
 
 /**
  * Much of the implementation here is adapted from https://github.com/Chlumsky/msdfgen, which is available under the MIT
@@ -64,9 +64,9 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
-      Vec2 e = Vec2.lerp(p0, p1, t);
-      Vec2 f = Vec2.lerp(p1, p2, t);
-      Vec2 g = Vec2.lerp(e, f, t);
+      Vec2 e = lerp(p0, p1, t);
+      Vec2 f = lerp(p1, p2, t);
+      Vec2 g = lerp(e, f, t);
       return new QuadraticBezier2[]{Bezier2.from(p0, e, g), Bezier2.from(g, f, p2)};
     }
 
@@ -171,12 +171,12 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
-      Vec2 e = Vec2.lerp(p0, p1, t);
-      Vec2 f = Vec2.lerp(p1, p2, t);
-      Vec2 g = Vec2.lerp(p2, p3, t);
-      Vec2 h = Vec2.lerp(e, f, t);
-      Vec2 j = Vec2.lerp(f, g, t);
-      Vec2 k = Vec2.lerp(h, j, t);
+      Vec2 e = lerp(p0, p1, t);
+      Vec2 f = lerp(p1, p2, t);
+      Vec2 g = lerp(p2, p3, t);
+      Vec2 h = lerp(e, f, t);
+      Vec2 j = lerp(f, g, t);
+      Vec2 k = lerp(h, j, t);
       return new CubicBezier2[]{Bezier2.from(p0, e, h, k), Bezier2.from(k, j, g, p3)};
     }
 

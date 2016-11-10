@@ -2,13 +2,14 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hash;
 
+import java.util.function.DoubleBinaryOperator;
+import java.util.function.DoublePredicate;
+import java.util.function.DoubleUnaryOperator;
+
 /**
  * @author ztellman
  */
-public class Vec3 {
-
-  public final static Vec3 ORIGIN = new Vec3(0, 0, 0);
-
+public class Vec3 extends Vec<Vec3> {
   public final double x, y, z;
 
   public Vec3(double x, double y, double z) {
@@ -17,78 +18,33 @@ public class Vec3 {
     this.z = z;
   }
 
-  public Vec3 add(Vec3 v) {
-    return new Vec3(x + v.x, y + v.y, z + v.z);
+  @Override
+  public final Vec3 map(DoubleUnaryOperator f) {
+    return new Vec3(f.applyAsDouble(x), f.applyAsDouble(y), f.applyAsDouble(z));
   }
 
-  public Vec3 sub(Vec3 v) {
-    return new Vec3(x - v.x, y - v.y, z - v.z);
+  @Override
+  public final double reduce(DoubleBinaryOperator f) {
+    return f.applyAsDouble(f.applyAsDouble(x, y), z);
   }
 
-  public Vec3 mul(Vec3 v) {
-    return new Vec3(x * v.x, y * v.y, z * v.z);
+  @Override
+  public final Vec3 zip(final Vec3 v, final DoubleBinaryOperator f) {
+    return new Vec3(f.applyAsDouble(x, v.x), f.applyAsDouble(y, v.y), f.applyAsDouble(z, v.z));
   }
 
-  public Vec3 mul(double k) {
-    return new Vec3(x * k, y * k, z * k);
+  @Override
+  public boolean every(DoublePredicate f) {
+    return f.test(x) && f.test(y) & f.test(z);
   }
 
-  public Vec3 div(Vec3 v) {
-    return new Vec3(x / v.x, y / v.y, z / v.z);
-  }
-
-  public Vec3 div(double k) {
-    return new Vec3(x / k, y / k, z / k);
-  }
-
-  public Vec3 abs() {
-    return new Vec3(Math.abs(x), Math.abs(y), Math.abs(z));
+  @Override
+  public boolean any(DoublePredicate f) {
+    return f.test(x) || f.test(y) || f.test(z);
   }
 
   public Vec4 vec4(double w) {
     return new Vec4(x, y, z, w);
-  }
-
-  public Vec3 norm() {
-    double l = lengthSquared();
-    if (l == 1.0) {
-      return this;
-    } else {
-      return div(Math.sqrt(l));
-    }
-  }
-
-  public double lengthSquared() {
-    return (x * x) + (y * y) + (z * z);
-  }
-
-  public double length() {
-    return Math.sqrt(lengthSquared());
-  }
-
-  public Vec3 clamp(double min, double max) {
-    return new Vec3(
-            Math.max(min, Math.min(max, this.x)),
-            Math.max(min, Math.min(max, this.y)),
-            Math.max(min, Math.min(max, this.z)));
-  }
-
-  public static Vec3 lerp(Vec3 a, Vec3 b, double t) {
-    return new Vec3(
-            a.x + (b.x - a.x) * t,
-            a.y + (b.y - a.y) * t,
-            a.z + (b.z - a.z) * t);
-  }
-
-  public static Vec3 lerp(Vec3 a, Vec3 b, Vec3 t) {
-    return new Vec3(
-            a.x + (b.x - a.x) * t.x,
-            a.y + (b.y - a.y) * t.y,
-            a.z + (b.z - a.z) * t.z);
-  }
-
-  public static double dot(Vec3 a, Vec3 b) {
-    return (a.x * b.x) + (a.y * b.y) + (a.z + b.z);
   }
 
   public static Vec3 cross(Vec3 a, Vec3 b) {
@@ -101,12 +57,6 @@ public class Vec3 {
   @Override
   public int hashCode() {
     return Hash.hash(x, y, z);
-  }
-
-  public static boolean equals(Vec3 a, Vec3 b, double epsilon) {
-    return Math.abs(a.x - b.x) <= epsilon
-            && Math.abs(a.y - b.y) <= epsilon
-            && Math.abs(a.z - b.z) <= epsilon;
   }
 
   @Override
@@ -122,4 +72,5 @@ public class Vec3 {
   public String toString() {
     return String.format("[x=%f, y=%f, z=%f]", x, y, z);
   }
+
 }
