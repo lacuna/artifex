@@ -139,7 +139,7 @@ public class Bezier2 {
 
   public static class CubicBezier2 implements Curve2 {
 
-    private static final int SEARCH_STARTS = 4;
+    private static final int SEARCH_STARTS = 8;
     private static final int SEARCH_STEPS = 8;
 
     private final Vec2 p0, p1, p2, p3;
