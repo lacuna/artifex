@@ -39,6 +39,11 @@ public class LinearSegment2 implements Curve2 {
   }
 
   @Override
+  public LinearSegment2 reverse() {
+    return new LinearSegment2(b, a);
+  }
+
+  @Override
   public Vec2 position(double t) {
     return Vec2.lerp(a, b, t);
   }

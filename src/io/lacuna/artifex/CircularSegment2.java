@@ -1,5 +1,7 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Hash;
+
 import static io.lacuna.artifex.Vec2.angleBetween;
 import static java.lang.Math.PI;
 
@@ -98,5 +100,24 @@ public class CircularSegment2 implements Curve2 {
   @Override
   public Curve2 transform(Matrix3 m) {
     return CircularSegment2.from(position(0), position(1), r);
+  }
+
+  @Override
+  public CircularSegment2 reverse() {
+    return new CircularSegment2(c, position(1), -theta, r);
+  }
+
+  @Override
+  public int hashCode() {
+    return Hash.hash(theta, r) ^ c.hashCode() ^ ca.hashCode();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj instanceof CircularSegment2) {
+      CircularSegment2 s = (CircularSegment2) obj;
+      return c.equals(s.c) && ca.equals(s.ca) && theta == s.theta;
+    }
+    return false;
   }
 }

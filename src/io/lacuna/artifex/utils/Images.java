@@ -1,6 +1,5 @@
 package io.lacuna.artifex.utils;
 
-import io.lacuna.artifex.Vec;
 import io.lacuna.artifex.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -14,11 +13,7 @@ import static java.lang.Math.min;
  */
 public class Images {
   public static double median(double a, double b, double c) {
-    if (a < b) {
-      return b < c ? b : c;
-    } else {
-      return a < c ? a : c;
-    }
+    return max(min(a, b), min(max(a, b), c));
   }
 
   public static Vec3 pixel(BufferedImage image, int x, int y) {

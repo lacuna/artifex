@@ -1,10 +1,19 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Images;
+
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.Vec2.dot;
-import static java.lang.Math.*;
+import static java.lang.Integer.bitCount;
+import static java.lang.Math.abs;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.lang.Math.signum;
+import static java.lang.Math.sin;
+import static java.lang.Math.sqrt;
 
 /**
  * Much of the implementation here is adapted from https://github.com/Chlumsky/msdfgen, which is available under the MIT
@@ -50,10 +59,6 @@ public class DistanceField {
     }
 
     public double distance() {
-      return sqrt(distSquared) * (inside ? 1 : -1);
-    }
-
-    public double pseudoDistance() {
       double d2 = pseudoDistSquared > 0 && pseudoDistSquared < distSquared ? pseudoDistSquared : distSquared;
       return sqrt(d2) * (inside ? 1 : -1);
     }
@@ -75,7 +80,7 @@ public class DistanceField {
     return dot(ta, tb) <= 0 || abs(cross(ta, tb)) > crossThreshold;
   }
 
-  private static List<Integer> cornerIndices(List<Curve2> curves, double angleThreshold) {
+  public static List<Integer> cornerIndices(List<Curve2> curves, double angleThreshold) {
     List<Integer> corners = new ArrayList<>();
     double crossThreshold = sin(angleThreshold);
 
@@ -97,7 +102,7 @@ public class DistanceField {
     return new Curve2[]{a[0], b[1], b[2]};
   }
 
-  private static Map<Curve2, Byte> edgeColors(List<Curve2> ring, double angleThreshold) {
+  public static Map<Curve2, Byte> edgeColors(List<Curve2> ring, double angleThreshold) {
     Map<Curve2, Byte> edgeColors = new HashMap<>();
     List<Integer> corners = cornerIndices(ring, angleThreshold);
 
@@ -148,20 +153,84 @@ public class DistanceField {
     return edgeColors;
   }
 
+  private static boolean clash(float[] a, float[] b) {
+    byte aPos, bPos, aNeg, bNeg;
+    aPos = bPos = aNeg = bNeg = 0;
+    for (int i = 0; i < 3; i++) {
+      if (a[i] < 0.5) {
+        aNeg |= 1;
+      } else if (a[i] > 0.5) {
+        aPos |= 1;
+      }
+
+      if (b[i] < 0.5) {
+        bNeg |= 1;
+      } else if (b[i] > 0.5) {
+        bPos |= 1;
+      }
+
+      aPos <<= 1;
+      bPos <<= 1;
+      aNeg <<= 1;
+      bNeg <<= 1;
+    }
+
+    return (bitCount(aNeg) == 2 && bitCount(bNeg) == 2 && bitCount(aNeg ^ bNeg) == 2)
+            || (bitCount(aPos) == 2 && bitCount(bPos) == 2 && bitCount(aPos ^ bPos) == 2)
+            || (bitCount(aPos) == 1 && bitCount(bPos) == 1 && bitCount(aPos | bPos) == 2);
+  }
+
+  private static void fixClashes(float[][][] field) {
+    int width = field.length;
+    int height = field[0].length;
+    for (int i = 0; i < width; i++) {
+      for (int j = 0; j < height; j++) {
+        float[] color = field[i][j];
+        if ((i > 0 && clash(color, field[i - 1][j]))
+                || (i < (width - 1) && clash(color, field[i + 1][j]))
+                || (j > 0 && clash(color, field[i][j - 1]))
+                || (j < (height - 1) && clash(color, field[i][j + 1]))) {
+          float median = (float) Images.median(color[0], color[1], color[2]);
+          color[0] = color[1] = color[2] = median;
+        }
+      }
+    }
+  }
+
+  public static boolean insideRings(List<List<Curve2>> rings, Vec2 point) {
+    return rings.stream()
+            .flatMap(List::stream)
+            .map(c -> new SignedDistance(c, point))
+            .sorted()
+            .findFirst()
+            .get()
+            .inside;
+  }
+
+  public static List<Curve2> reverseRing(List<Curve2> ring) {
+    List<Curve2> result = ring.stream().map(Curve2::reverse).collect(Collectors.toList());
+    Collections.reverse(result);
+    return result;
+  }
+
   public static float[][][] distanceField(
-          Iterable<List<Curve2>> curveRings,
+          List<List<Curve2>> rings,
           int w,
           int h,
           Box2 bounds,
           double angleThreshold,
           float scale) {
-    float[][][] field = new float[w][h][3];
+
+    if (insideRings(rings, bounds.lerp(Vec2.ORIGIN))) {
+      rings = rings.stream().map(DistanceField::reverseRing).collect(Collectors.toList());
+    }
 
     Map<Curve2, Byte> curves = new HashMap<>();
-    for (List<Curve2> ring : curveRings) {
+    for (List<Curve2> ring : rings) {
       curves.putAll(edgeColors(ring, angleThreshold));
     }
 
+    float[][][] field = new float[w][h][3];
     for (int x = 0; x < w; x++) {
       for (int y = 0; y < h; y++) {
         SignedDistance r, g, b;
@@ -169,8 +238,9 @@ public class DistanceField {
         Vec2 t = new Vec2((x + 0.5) / (w + 1), (y + 0.5) / (h + 1));
         Vec2 p = bounds.lerp(t);
 
-        for (Curve2 c : curves.keySet()) {
-          byte color = curves.get(c);
+        for (Map.Entry<Curve2, Byte> e: curves.entrySet()) {
+          Curve2 c = e.getKey();
+          byte color = e.getValue();
           SignedDistance d = new SignedDistance(c, p);
 
           if ((color & RED) > 0 && (r == null || r.compareTo(d) > 0)) {
@@ -184,9 +254,9 @@ public class DistanceField {
           }
         }
 
-        field[x][y][0] = r != null ? (float) r.pseudoDistance() : 0f;
-        field[x][y][1] = g != null ? (float) g.pseudoDistance() : 0f;
-        field[x][y][2] = b != null ? (float) b.pseudoDistance() : 0f;
+        field[x][y][0] = r != null ? (float) r.distance() : 0f;
+        field[x][y][1] = g != null ? (float) g.distance() : 0f;
+        field[x][y][2] = b != null ? (float) b.distance() : 0f;
 
         for (int z = 0; z < 3; z++) {
           field[x][y][z] = min(1f, max(0f, (field[x][y][z] / (scale * 2)) + 0.5f));
@@ -194,10 +264,12 @@ public class DistanceField {
       }
     }
 
+    fixClashes(field);
+
     return field;
   }
 
-  public static float[][][] distanceField(Iterable<List<Curve2>> curveRings, int w, int h) {
+  public static float[][][] distanceField(List<List<Curve2>> curveRings, int w, int h) {
     Box2 b = Box2.EMPTY;
     for (List<Curve2> curves : curveRings) {
       for (Curve2 c : curves) {
@@ -206,6 +278,6 @@ public class DistanceField {
     }
     b = new Box2(b.left - 1, b.right + 1, b.bottom - 1, b.top + 1);
 
-    return distanceField(curveRings, w, h, b, Math.toRadians(3), 0.25f);
+    return distanceField(curveRings, w, h, b, Math.toRadians(3), (float) b.size().reduce(Math::max) / 4);
   }
 }

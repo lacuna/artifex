@@ -35,7 +35,7 @@ public class Vec3 extends Vec<Vec3> {
 
   @Override
   public boolean every(DoublePredicate f) {
-    return f.test(x) && f.test(y) & f.test(z);
+    return f.test(x) && f.test(y) && f.test(z);
   }
 
   @Override

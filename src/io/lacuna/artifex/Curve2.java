@@ -33,4 +33,6 @@ public interface Curve2 {
   Box2 bounds();
 
   Curve2 transform(Matrix3 m);
+
+  Curve2 reverse();
 }

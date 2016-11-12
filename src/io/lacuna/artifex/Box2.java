@@ -2,6 +2,8 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hash;
 
+import java.awt.geom.Rectangle2D;
+
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -29,6 +31,10 @@ public class Box2 {
     this.isEmpty = false;
   }
 
+  public static Box2 from(Rectangle2D rect) {
+    return new Box2(rect.getMinX(), rect.getMaxX(), rect.getMinY(), rect.getMaxY());
+  }
+
   public static Box2 from(Vec2 a, Vec2 b) {
     double left, right, top, bottom;
     if (a.x < b.x) {
@@ -50,6 +56,10 @@ public class Box2 {
     return new Box2(left, right, bottom, top);
   }
 
+  public Vec2 size() {
+    return new Vec2(right - left, top - bottom);
+  }
+
   public Vec2 centroid() {
     return new Vec2((left + right) / 2, (bottom + top) + 2);
   }
@@ -63,10 +73,6 @@ public class Box2 {
 
   public Vec2 lerp(Vec2 t) {
     return new Vec2(left + (right - left) * t.x, bottom + (top - bottom) * t.y);
-  }
-
-  public Vec2 lerp(double t) {
-    return new Vec2(left + (right - left) * t, bottom + (top - bottom) * t);
   }
 
   public Box2 union(Vec2 v) {

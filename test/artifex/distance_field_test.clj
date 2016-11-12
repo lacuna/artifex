@@ -1,7 +1,8 @@
 (ns artifex.distance-field-test
   (:require
-   [clojure.java.io :as io
-    ])
+   [clojure.test :refer :all]
+   [clojure.java.io :as io]
+   [criterium.core :as c])
   (:import
    [io.lacuna.artifex
     DistanceField
@@ -10,9 +11,14 @@
     Vec3
     Vec4]
    [io.lacuna.artifex.utils
-    Images]
+    Images
+    Equations]
+   [io.lacuna.artifex.formats
+    Glyphs]
    [javax.imageio
     ImageIO]
+   [java.awt
+    Font]
    [java.awt.image
     BufferedImage]))
 
@@ -32,11 +38,13 @@
   ([a b c d]
    (Bezier2/from a b c d)))
 
-(def distance-field
-  (DistanceField/distanceField
-    [[(bezier (v 0 -1) (v -1 0) (v 0 1))
-      (bezier (v 0 1) (v 1 0) (v 0 -1))]]
-    32 32))
+(defn distance-field [curves w h]
+  (DistanceField/distanceField curves w h))
 
 (defn save-image [image filename]
   (ImageIO/write image "png" (io/file filename)))
+
+(deftest test-benchmark
+  (let [curves (-> (Font. "Helvetica" Font/PLAIN 10) (Glyphs/outline \a) Glyphs/curves)]
+    (c/quick-bench
+      (distance-field curves 32 32))))

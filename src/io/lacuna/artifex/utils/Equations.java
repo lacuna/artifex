@@ -1,8 +1,6 @@
 package io.lacuna.artifex.utils;
 
 import static java.lang.Math.*;
-import static java.lang.Math.abs;
-import static java.lang.Math.sqrt;
 
 /**
  * @author ztellman
@@ -35,6 +33,22 @@ public class Equations {
     }
   }
 
+  // adapted from http://http.developer.nvidia.com/Cg/acos.html
+  public static double acos(double x) {
+    double negate = x < 0 ? 1 : 0;
+    x = abs(x);
+    double ret = -0.0187293;
+    ret *= x;
+    ret += 0.0742610;
+    ret *= x;
+    ret -= 0.2121144;
+    ret *= x;
+    ret += 1.5707288;
+    ret *= sqrt(1.0 - x);
+    ret -= 2 * negate * ret;
+    return (negate * PI) + ret;
+  }
+
   private static double[] solveCubicNormed(double a, double b, double c) {
     double a2 = a * a;
     double q = (a2 - (3 * b)) / 9;
@@ -46,7 +60,7 @@ public class Equations {
       double t = r / sqrt(q3);
       if (t < -1) t = -1;
       if (t > 1) t = 1;
-      t = acos(t);
+      t = Math.acos(t);
 
       a /= 3;
       q = -2 * sqrt(q);

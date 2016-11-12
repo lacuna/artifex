@@ -33,7 +33,7 @@ public class Bezier2 {
     return s == 0 ? -1 : s;
   }
 
-  static class QuadraticBezier2 implements Curve2 {
+  public static class QuadraticBezier2 implements Curve2 {
 
     private final Vec2 p0, p1, p2;
 
@@ -130,11 +130,16 @@ public class Bezier2 {
     public Curve2 transform(Matrix3 m) {
       return new QuadraticBezier2(p0.transform(m), p1.transform(m), p2.transform(m));
     }
+
+    @Override
+    public QuadraticBezier2 reverse() {
+      return new QuadraticBezier2(p2, p1, p0);
+    }
   }
 
   public static class CubicBezier2 implements Curve2 {
 
-    private static final int SEARCH_STARTS = 8;
+    private static final int SEARCH_STARTS = 4;
     private static final int SEARCH_STEPS = 8;
 
     private final Vec2 p0, p1, p2, p3;
@@ -253,6 +258,11 @@ public class Bezier2 {
     @Override
     public Curve2 transform(Matrix3 m) {
       return new CubicBezier2(p0.transform(m), p1.transform(m), p2.transform(m), p3.transform(m));
+    }
+
+    @Override
+    public CubicBezier2 reverse() {
+      return new CubicBezier2(p3, p2, p1, p0);
     }
   }
 }
