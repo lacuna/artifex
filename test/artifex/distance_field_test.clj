@@ -5,7 +5,6 @@
    [criterium.core :as c])
   (:import
    [io.lacuna.artifex
-    DistanceField
     Bezier2
     Matrix3
     Vec2
@@ -13,7 +12,8 @@
     Vec4]
    [io.lacuna.artifex.utils
     Images
-    Equations]
+    Equations
+    DistanceField]
    [io.lacuna.artifex.formats
     Glyphs
     Glyphs$Field]
