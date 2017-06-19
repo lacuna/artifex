@@ -1,7 +1,6 @@
 package io.lacuna.artifex.utils;
 
 import io.lacuna.artifex.*;
-import io.lacuna.artifex.utils.Images;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -82,7 +81,7 @@ public class DistanceField {
     return dot(ta, tb) <= 0 || abs(cross(ta, tb)) > crossThreshold;
   }
 
-  private static List<Integer> cornerIndices(Ring2 ring, double angleThreshold) {
+  private static List<Integer> cornerIndices(CurveRing2 ring, double angleThreshold) {
     List<Integer> corners = new ArrayList<>();
     List<Curve2> curves = ring.curves();
     double crossThreshold = sin(angleThreshold);
@@ -103,7 +102,7 @@ public class DistanceField {
     return c.split(new double[]{0.33, 0.66});
   }
 
-  private static Map<Curve2, Byte> edgeColors(Ring2 ring, double angleThreshold) {
+  private static Map<Curve2, Byte> edgeColors(CurveRing2 ring, double angleThreshold) {
     Map<Curve2, Byte> edgeColors = new HashMap<>();
     List<Integer> corners = cornerIndices(ring, angleThreshold);
     List<Curve2> curves = ring.curves();
@@ -278,7 +277,7 @@ public class DistanceField {
     }
   }
 
-  public static boolean insideRings(List<Ring2> rings, Vec2 point) {
+  public static boolean insideRings(List<CurveRing2> rings, Vec2 point) {
     return rings.stream()
         .flatMap(rs -> rs.curves().stream())
         .map(c -> new SignedDistance(c, point))
@@ -289,14 +288,14 @@ public class DistanceField {
   }
 
   public static float[][][] distanceField(
-      List<Ring2> rings,
+      List<CurveRing2> rings,
       int w,
       int h,
       Interval2 bounds,
       double angleThreshold) {
 
     Map<Curve2, Byte> curveMap = new HashMap<>();
-    for (Ring2 ring : rings) {
+    for (CurveRing2 ring : rings) {
       curveMap.putAll(edgeColors(ring, angleThreshold));
     }
 

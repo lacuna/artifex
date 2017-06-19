@@ -28,11 +28,11 @@ public class Glyphs {
 
       fieldBounds = visualBounds.expand(visualBounds.size().y * (2.0 / resolution));
 
-      List<Ring2> rings = rings(glyph.getOutline());
+      List<CurveRing2> rings = rings(glyph.getOutline());
 
       // if the upper corner is inside the shape, our curve directions are inverted
       if (DistanceField.insideRings(rings, fieldBounds.lerp(Vec2.ORIGIN))) {
-        rings = rings.stream().map(Ring2::reverse).collect(Collectors.toList());
+        rings = rings.stream().map(CurveRing2::reverse).collect(Collectors.toList());
       }
 
       field = DistanceField.distanceField(
@@ -62,7 +62,7 @@ public class Glyphs {
 
   private static final FontRenderContext FONT_RENDER_CONTEXT = new FontRenderContext(null, false, false);
 
-  public static List<Ring2> rings(Shape shape) {
+  public static List<CurveRing2> rings(Shape shape) {
     List<List<Curve2>> result = new ArrayList<>();
     List<Curve2> curves = new ArrayList<>();
 
@@ -99,7 +99,7 @@ public class Glyphs {
       it.next();
     }
 
-    return result.stream().map(Ring2::new).collect(Collectors.toList());
+    return result.stream().map(CurveRing2::new).collect(Collectors.toList());
   }
 
   public static Field glyph(Font font, String s, int resolution) {

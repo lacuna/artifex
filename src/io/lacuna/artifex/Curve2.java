@@ -77,6 +77,6 @@ public interface Curve2 {
   }
 
   default double[] intersections(Curve2 c) {
-    return Curves.intersections(this, c);
+    return intersections(c, 1e-14);
   }
 }
