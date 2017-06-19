@@ -21,7 +21,7 @@ public class Plane3 {
    * @return the signed distance from the point to the plane's surface
    */
   public double distance(Vec3 v) {
-    return Vec3.dot(v, normal) + p;
+    return Vec.dot(v, normal) + p;
   }
 
   @Override

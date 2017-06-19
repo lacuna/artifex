@@ -1,33 +1,68 @@
 package io.lacuna.artifex.formats;
 
-import io.lacuna.artifex.Bezier2;
-import io.lacuna.artifex.Box2;
-import io.lacuna.artifex.Curve2;
-import io.lacuna.artifex.Vec2;
+import io.lacuna.artifex.*;
+import io.lacuna.artifex.utils.DistanceField;
+import io.lacuna.artifex.utils.Images;
 
 import java.awt.*;
 import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.awt.geom.PathIterator;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author ztellman
  */
 public class Glyphs {
 
+  public static class Field {
+    public final Interval2 fieldBounds, logicalBounds, visualBounds;
+    private final float[][][] field;
+
+    public Field(GlyphVector glyph, int resolution) {
+      visualBounds = Interval.from(glyph.getVisualBounds());
+      logicalBounds = Interval.from(glyph.getLogicalBounds());
+
+      fieldBounds = visualBounds.expand(visualBounds.size().y * (2.0 / resolution));
+
+      List<Ring2> rings = rings(glyph.getOutline());
+
+      // if the upper corner is inside the shape, our curve directions are inverted
+      if (DistanceField.insideRings(rings, fieldBounds.lerp(Vec2.ORIGIN))) {
+        rings = rings.stream().map(Ring2::reverse).collect(Collectors.toList());
+      }
+
+      field = DistanceField.distanceField(
+          rings,
+          (int) Math.ceil(aspectRatio() * resolution),
+          resolution,
+          fieldBounds,
+          Math.toRadians(3));
+    }
+
+    public double aspectRatio() {
+      return fieldBounds.size().x / fieldBounds.size().y;
+    }
+
+    public BufferedImage field() {
+      return Images.distanceFieldImage(field, (float) fieldBounds.size().y / 2);
+    }
+
+    public BufferedImage render(int resolution) {
+      return Images.renderDistanceField(
+          field(),
+          (int) Math.ceil(aspectRatio() * resolution),
+          resolution,
+          (float) (fieldBounds.size().y * 1.2) / resolution);
+    }
+  }
+
   private static final FontRenderContext FONT_RENDER_CONTEXT = new FontRenderContext(null, false, false);
 
-  public static Box2 logicalBounds(GlyphVector glyph) {
-    return Box2.from(glyph.getLogicalBounds());
-  }
-
-  public static Box2 visualBounds(GlyphVector glyph) {
-    return Box2.from(glyph.getVisualBounds());
-  }
-
-  public static List<List<Curve2>> curves(Shape shape) {
+  public static List<Ring2> rings(Shape shape) {
     List<List<Curve2>> result = new ArrayList<>();
     List<Curve2> curves = new ArrayList<>();
 
@@ -64,10 +99,10 @@ public class Glyphs {
       it.next();
     }
 
-    return result;
+    return result.stream().map(Ring2::new).collect(Collectors.toList());
   }
 
-  public static Shape outline(Font font, char a) {
-    return font.createGlyphVector(FONT_RENDER_CONTEXT, new char[]{a}).getOutline();
+  public static Field glyph(Font font, String s, int resolution) {
+    return new Field(font.createGlyphVector(FONT_RENDER_CONTEXT, s.toCharArray()), resolution);
   }
 }

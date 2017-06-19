@@ -23,11 +23,11 @@ public class LinearSegment2 implements Curve2 {
       return null;
     }
 
-    double s = (-pv.y * (p.a.x - q.a.x)) + ((pv.x * (p.a.y - q.a.y)) / d);
+    double s = ((-pv.y * (p.a.x - q.a.x)) + (pv.x * (p.a.y - q.a.y))) / d;
     if (s >= 0 && s <= 1) {
-      double t = (qv.x * (p.a.y - q.a.y)) - ((qv.y * (p.a.x - q.a.x)) / d);
+      double t = ((qv.x * (p.a.y - q.a.y)) - (qv.y * (p.a.x - q.a.x))) / d;
       if (t >= 0 && t <= 1) {
-        return p.a.add(pv.mul(t));
+        return new Vec2(s, t);
       }
     }
 
@@ -44,8 +44,13 @@ public class LinearSegment2 implements Curve2 {
   }
 
   @Override
+  public double[] inflections() {
+    return new double[0];
+  }
+
+  @Override
   public Vec2 position(double t) {
-    return Vec2.lerp(a, b, t);
+    return Vec.lerp(a, b, t);
   }
 
   @Override
@@ -54,7 +59,13 @@ public class LinearSegment2 implements Curve2 {
   }
 
   @Override
-  public Curve2[] split(double t) {
+  public LinearSegment2[] split(double t) {
+    if (t == 0 || t == 1) {
+      return new LinearSegment2[]{this};
+    } else if (t < 0 || t > 1) {
+      throw new IllegalArgumentException("t must be within [0,1]");
+    }
+
     Vec2 v = position(t);
     return new LinearSegment2[]{new LinearSegment2(a, v), new LinearSegment2(v, b)};
   }
@@ -63,12 +74,17 @@ public class LinearSegment2 implements Curve2 {
   public double nearestPoint(Vec2 p) {
     Vec2 bSa = b.sub(a);
     Vec2 pSa = p.sub(a);
-    return Vec2.dot(bSa, pSa) / bSa.lengthSquared();
+    return Vec.dot(bSa, pSa) / bSa.lengthSquared();
   }
 
   @Override
-  public Box2 bounds() {
-    return Box2.from(a, b);
+  public Interval2 endpoints() {
+    return bounds();
+  }
+
+  @Override
+  public Interval2 bounds() {
+    return Interval.from(a, b);
   }
 
   /**
@@ -99,5 +115,10 @@ public class LinearSegment2 implements Curve2 {
       return a.equals(s.a) && b.equals(s.b);
     }
     return false;
+  }
+
+  @Override
+  public String toString() {
+    return "a=" + a + ", b=" + b;
   }
 }

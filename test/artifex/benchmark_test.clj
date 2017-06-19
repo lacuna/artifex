@@ -6,11 +6,12 @@
    [io.lacuna.artifex
     Vec2
     Vec3
+    Vec4
     Vec]))
 
-#_(deftest benchmark-vector
-  (let [a (Vec3. 0 0 0)
-        b (Vec3. 1 1 1)]
+#_(deftest ^:benchmark benchmark-vector
+  (let [a (Vec2. 0 0)
+        b (Vec2. 1 1)]
     (c/quick-bench
       (.add a b))
     (c/quick-bench

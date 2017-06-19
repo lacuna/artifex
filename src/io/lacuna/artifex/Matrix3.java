@@ -51,6 +51,10 @@ public class Matrix3 {
     return scale(v.x, v.y);
   }
 
+  public static Matrix3 scale(double k) {
+    return scale(k, k);
+  }
+
   public static Matrix3 rotate(double radians) {
     double c = Math.cos(radians);
     double s = Math.sin(radians);

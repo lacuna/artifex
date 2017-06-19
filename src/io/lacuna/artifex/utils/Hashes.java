@@ -3,7 +3,13 @@ package io.lacuna.artifex.utils;
 /**
  * @author ztellman
  */
-public class Hash {
+public class Hashes {
+
+  public static int hash(double x) {
+    long hash = 31L * Double.doubleToLongBits(x);
+    return (int) (hash ^ (hash >>> 32));
+  }
+
   public static int hash(double x, double y) {
     long hash = 1L;
     hash = (hash * 31) + Double.doubleToLongBits(x);

@@ -1,6 +1,6 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.utils.Hash;
+import io.lacuna.artifex.utils.Hashes;
 
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoublePredicate;
@@ -9,7 +9,7 @@ import java.util.function.DoubleUnaryOperator;
 /**
  * @author ztellman
  */
-public class Vec3 extends Vec<Vec3> {
+public class Vec3 implements Vec<Vec3> {
   public final double x, y, z;
 
   public Vec3(double x, double y, double z) {
@@ -24,7 +24,12 @@ public class Vec3 extends Vec<Vec3> {
   }
 
   @Override
-  public final double reduce(DoubleBinaryOperator f) {
+  public final double reduce(DoubleBinaryOperator f, double init) {
+    return f.applyAsDouble(f.applyAsDouble(init, x), f.applyAsDouble(y, z));
+  }
+
+  @Override
+  public double reduce(DoubleBinaryOperator f) {
     return f.applyAsDouble(f.applyAsDouble(x, y), z);
   }
 
@@ -43,6 +48,21 @@ public class Vec3 extends Vec<Vec3> {
     return f.test(x) || f.test(y) || f.test(z);
   }
 
+  @Override
+  public double nth(int idx) {
+    switch (idx) {
+      case 0: return x;
+      case 1: return y;
+      case 2: return z;
+      default: throw new IndexOutOfBoundsException();
+    }
+  }
+
+  @Override
+  public int dim() {
+    return 3;
+  }
+
   public Vec4 vec4(double w) {
     return new Vec4(x, y, z, w);
   }
@@ -56,7 +76,7 @@ public class Vec3 extends Vec<Vec3> {
 
   @Override
   public int hashCode() {
-    return Hash.hash(x, y, z);
+    return Hashes.hash(x, y, z);
   }
 
   @Override

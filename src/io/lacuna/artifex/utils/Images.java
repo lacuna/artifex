@@ -4,6 +4,7 @@ import io.lacuna.artifex.Vec3;
 
 import java.awt.image.BufferedImage;
 
+import static io.lacuna.artifex.utils.DistanceField.median;
 import static io.lacuna.artifex.Vec.lerp;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -12,9 +13,6 @@ import static java.lang.Math.min;
  * @author ztellman
  */
 public class Images {
-  public static double median(double a, double b, double c) {
-    return max(min(a, b), min(max(a, b), c));
-  }
 
   public static Vec3 pixel(BufferedImage image, int x, int y) {
     int color = image.getRGB(x, y);
@@ -40,7 +38,7 @@ public class Images {
             xt);
   }
 
-  public static BufferedImage distanceFieldImage(float[][][] field) {
+  public static BufferedImage distanceFieldImage(float[][][] field, float scale) {
     int w = field.length;
     int h = field[0].length;
 
@@ -50,7 +48,8 @@ public class Images {
         int color = 0;
         for (int z = 0; z < 3; z++) {
           color <<= 8;
-          color += (int) (255 * field[x][y][z]);
+          float scaled = max(0f, min(1f, (field[x][y][z] / (scale / 2)) + 0.5f));
+          color += (int) (255 * scaled);
         }
         image.setRGB(x, y, color);
       }
@@ -64,9 +63,21 @@ public class Images {
       for (int y = 0; y < h; y++) {
         Vec3 color = blit(fieldImage, ((double) x) / w, ((double) y) / h);
         double val = median(color.x, color.y, color.z);
-        double lo = 0.5f - blur / 2;
+        double lo = 0.5 - blur / 2;
         val = min(1, max(0, (val - lo) / blur));
         image.setRGB(x, y, (int) (val * Short.MAX_VALUE * 2));
+      }
+    }
+    return image;
+  }
+
+  public static BufferedImage testRenderDistanceField(BufferedImage fieldImage, int w, int h, float blur) {
+    BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_3BYTE_BGR);
+    for (int x = 0; x < w; x++) {
+      for (int y = 0; y < h; y++) {
+        Vec3 color = blit(fieldImage, ((double) x) / w, ((double) y) / h);
+        color = color.map(n -> n >= 0.5 ? 255 : 0);
+        image.setRGB(x, y, (int) color.x << 16 | (int) color.y << 8 | (int) color.z);
       }
     }
     return image;

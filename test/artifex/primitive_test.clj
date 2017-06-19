@@ -1,10 +1,15 @@
 (ns artifex.primitive-test
   (:require
+   [criterium.core :as c]
    [clojure.test :refer :all])
   (:import
+   [io.lacuna.artifex.utils
+    Curves]
    [io.lacuna.artifex
-    Box2
+    Interval
+    Interval2
     LinearRing2
+    LinearSegment2
     CircularSegment2
     Curve2
     Bezier2
@@ -142,8 +147,8 @@
 
 (defn split-and-check [^Curve2 c t n]
   (let [[a b] (seq (.split c t))
-        pa (sample-curve a n)
-        pb (sample-curve b n)
+        pa (when a (sample-curve a n))
+        pb (when b (sample-curve b n))
         ts (concat
              (->> (range n)
                (map #(* t (/ % (dec n)))))
@@ -152,7 +157,7 @@
     (doseq [[a b] (->> ts
                     (map #(.position c %))
                     (map vector (concat pa pb)))]
-      (is (Vec2/equals a b 1e-14)))))
+      (is (Vec/equals a b 1e-14)))))
 
 (deftest test-curve-split
   (let [linear (Bezier2/from (v 0 0) (v 1 1))
@@ -182,14 +187,14 @@
   (let [linear (Bezier2/from (v 0 0) (v 1 1))
         quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
         cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
-        circle (CircularSegment2/from (v 0 -1) (v 0 1) 1)]
+        circle (CircularSegment2/from (v -1 0) (v 0 1) 1)]
     (doseq [v (repeatedly 1e3 #(random-vector -5 5))]
       (doseq [c [linear quad cubic circle]]
         (let [t0 (nearest-point c v)
               t1 (max 0 (min 1 (.nearestPoint c v)))
               d0 (-> c (.position t0) (.sub v) .length)
               d1 (-> c (.position t1) (.sub v) .length)]
-          (is (< (Math/abs (- d0 d1)) 1e-2)))))))
+          (is (< (Math/abs (- d0 d1)) 1e-2) v))))))
 
 ;;;
 
@@ -197,11 +202,11 @@
   (->> (range n)
     (map #(/ % (dec n)))
     (map #(.position c %))
-    (reduce #(.union ^Box2 %1 ^Vec2 %2) Box2/EMPTY)))
+    (reduce #(.union ^Interval2 %1 ^Vec2 %2) Interval2/EMPTY)))
 
 (defn check-bounds [^Curve2 c]
   (let [bounds (.bounds c)]
-    (is (Box2/equals bounds (.union bounds (sampled-bounds c 100)) 1e-14))))
+    (is (Interval/equals bounds (.union bounds (sampled-bounds c 100)) 1e-14) (str c " "  bounds " " (.union bounds (sampled-bounds c 100))))))
 
 (deftest test-bounds
   (doseq [points [2 3 4]]

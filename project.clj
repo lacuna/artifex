@@ -1,11 +1,10 @@
 (defproject artifex "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :description ""
+  :url "https://github.com/lacuna/artifex"
+  :license {:name "MIT License"}
   :dependencies []
-  :plugins [[lein-virgil "0.1.0"]]
   :java-source-paths ["src"]
+  :plugins [[lein-virgil "0.1.6"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [criterium "0.4.3"]]}}
-  :jvm-opts ^:replace ["-server" "-Xmx1g"])
+  :jvm-opts ^:replace ["-server" "-Xmx1g" "-XX:+UnlockDiagnosticVMOptions" #_"-XX:+PrintAssembly" #_"-XX:CompileCommand=print,io.lacuna.artifex.Vec::equals" #_"-XX:CompileCommand=dontinline,io.lacuna.artifex.Vec::equals"])

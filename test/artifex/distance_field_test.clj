@@ -7,6 +7,7 @@
    [io.lacuna.artifex
     DistanceField
     Bezier2
+    Matrix3
     Vec2
     Vec3
     Vec4]
@@ -14,7 +15,8 @@
     Images
     Equations]
    [io.lacuna.artifex.formats
-    Glyphs]
+    Glyphs
+    Glyphs$Field]
    [javax.imageio
     ImageIO]
    [java.awt
@@ -38,13 +40,11 @@
   ([a b c d]
    (Bezier2/from a b c d)))
 
-(defn distance-field [curves w h]
-  (DistanceField/distanceField curves w h))
-
 (defn save-image [image filename]
   (ImageIO/write image "png" (io/file filename)))
 
-(deftest test-benchmark
-  (let [curves (-> (Font. "Helvetica" Font/PLAIN 10) (Glyphs/outline \a) Glyphs/curves)]
-    (c/quick-bench
-      (distance-field curves 32 32))))
+(defn render [str field-res image-res]
+  (-> (Font. "Helvetica" Font/PLAIN 10)
+    (Glyphs/glyph str field-res)
+    #_.field
+    (.render image-res)))

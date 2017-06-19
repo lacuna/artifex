@@ -5,15 +5,13 @@ import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.utils.Equations.solveCubic;
 import static io.lacuna.artifex.utils.Equations.solveQuadratic;
+import static io.lacuna.artifex.utils.Scalars.inside;
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
 
 /**
- * Much of the implementation here is adapted from https://github.com/Chlumsky/msdfgen, which is available under the MIT
- * license.
- *
  * @author ztellman
-*/
+ */
 public class Bezier2 {
 
   public static LinearSegment2 from(Vec2 p0, Vec2 p1) {
@@ -35,12 +33,17 @@ public class Bezier2 {
 
   public static class QuadraticBezier2 implements Curve2 {
 
-    private final Vec2 p0, p1, p2;
+    public final Vec2 p0, p1, p2;
 
     QuadraticBezier2(Vec2 p0, Vec2 p1, Vec2 p2) {
       this.p0 = p0;
       this.p1 = p1;
       this.p2 = p2;
+    }
+
+    @Override
+    public Interval2 endpoints() {
+      return new Interval2(p0, p2);
     }
 
     @Override
@@ -64,6 +67,12 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
+      if (t == 0 || t == 1) {
+        return new QuadraticBezier2[]{this};
+      } else if (t < 0 || t > 1) {
+        throw new IllegalArgumentException("t must be within [0,1]");
+      }
+
       Vec2 e = lerp(p0, p1, t);
       Vec2 f = lerp(p1, p2, t);
       Vec2 g = lerp(e, f, t);
@@ -110,23 +119,6 @@ public class Bezier2 {
     }
 
     @Override
-    public Box2 bounds() {
-      Box2 bounds = Box2.from(p0, p2);
-      Vec2 bottom = p1.sub(p0).sub(p2.sub(p1));
-      Vec2 params = p1.sub(p0).div(bottom);
-
-      if (0 < params.x && params.x < 1) {
-        bounds = bounds.union(position(params.x));
-      }
-
-      if (0 < params.y && params.y < 1) {
-        bounds = bounds.union(position(params.y));
-      }
-
-      return bounds;
-    }
-
-    @Override
     public Curve2 transform(Matrix3 m) {
       return new QuadraticBezier2(p0.transform(m), p1.transform(m), p2.transform(m));
     }
@@ -135,6 +127,45 @@ public class Bezier2 {
     public QuadraticBezier2 reverse() {
       return new QuadraticBezier2(p2, p1, p0);
     }
+
+    @Override
+    public double[] inflections() {
+      Vec2 div = p0.sub(p1.mul(2)).add(p2);
+      if (div.x == 0 || div.y == 0) {
+        return new double[0];
+      } else {
+        Vec2 v = p0.sub(p1).div(div);
+        boolean x = inside(v.x, 0, 1);
+        boolean y = inside(v.y, 0, 1);
+        if (x && y) {
+          return new double[]{v.x, v.y};
+        } else if (x ^ y) {
+          return new double[]{x ? v.x : v.y};
+        } else {
+          return new double[0];
+        }
+      }
+    }
+
+    @Override
+    public int hashCode() {
+      return ((p0.hashCode() * 31) + p1.hashCode()) * 31 + p2.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj instanceof QuadraticBezier2) {
+        QuadraticBezier2 b = (QuadraticBezier2) obj;
+        return p0.equals(b.p0) && p1.equals(b.p1) && p2.equals(b.p2);
+      }
+      return false;
+    }
+
+    @Override
+    public String toString() {
+      return "p0=" + p0 + ", p1=" + p1 + ", p2=" + p2;
+    }
+
   }
 
   public static class CubicBezier2 implements Curve2 {
@@ -175,7 +206,18 @@ public class Bezier2 {
     }
 
     @Override
-    public Curve2[] split(double t) {
+    public Interval2 endpoints() {
+      return new Interval2(p0, p3);
+    }
+
+    @Override
+    public CubicBezier2[] split(double t) {
+      if (t == 0 || t == 1) {
+        return new CubicBezier2[]{this};
+      } else if (t < 0 || t > 1) {
+        throw new IllegalArgumentException("t must be within [0,1]");
+      }
+
       Vec2 e = lerp(p0, p1, t);
       Vec2 f = lerp(p1, p2, t);
       Vec2 g = lerp(p2, p3, t);
@@ -186,6 +228,10 @@ public class Bezier2 {
     }
 
     @Override
+    /**
+     * This quintic solver is adapted from https://github.com/Chlumsky/msdfgen, which is available under the MIT
+     * license.
+     */
     public double nearestPoint(Vec2 p) {
       Vec2 qa = p0.sub(p);
       Vec2 ab = p1.sub(p0);
@@ -231,31 +277,6 @@ public class Bezier2 {
     }
 
     @Override
-    public Box2 bounds() {
-      Box2 bounds = Box2.from(p0, p3);
-
-      Vec2 a0 = p1.sub(p0);
-      Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
-      Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
-
-      double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
-      for (double s : s1) {
-        if (0 < s && s < 1) {
-          bounds = bounds.union(position(s));
-        }
-      }
-
-      double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
-      for (double s : s2) {
-        if (0 < s && s < 1) {
-          bounds = bounds.union(position(s));
-        }
-      }
-
-      return bounds;
-    }
-
-    @Override
     public Curve2 transform(Matrix3 m) {
       return new CubicBezier2(p0.transform(m), p1.transform(m), p2.transform(m), p3.transform(m));
     }
@@ -263,6 +284,46 @@ public class Bezier2 {
     @Override
     public CubicBezier2 reverse() {
       return new CubicBezier2(p3, p2, p1, p0);
+    }
+
+    @Override
+    public double[] inflections() {
+      Vec2 a0 = p1.sub(p0);
+      Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
+      Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
+
+      double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
+      double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
+
+      int solutions = 0;
+      for (double n : s1) if (inside(n, 0, 1)) solutions++;
+      for (double n : s2) if (inside(n, 0, 1)) solutions++;
+
+      double[] s = new double[solutions];
+      int idx = 0;
+      for (double n : s1) if (inside(n, 0, 1)) s[idx++] = n;
+      for (double n : s2) if (inside(n, 0, 1)) s[idx++] = n;
+
+      return s;
+    }
+
+    @Override
+    public int hashCode() {
+      return (((p0.hashCode() * 31) + p1.hashCode()) * 31 + p2.hashCode()) * 31 + p3.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj instanceof CubicBezier2) {
+        CubicBezier2 b = (CubicBezier2) obj;
+        return p0.equals(b.p0) && p1.equals(b.p1) && p2.equals(b.p2) && p3.equals(b.p3);
+      }
+      return false;
+    }
+
+    @Override
+    public String toString() {
+      return "p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3;
     }
   }
 }
