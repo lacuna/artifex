@@ -13,14 +13,14 @@ import static java.lang.Math.min;
 public class CurveRing2 {
 
   private final List<Curve2> curves;
-  private final Interval2 bounds;
+  private final Box2 bounds;
 
   public CurveRing2(List<Curve2> curves) {
     this.curves = curves.stream()
         .flatMap(c -> Arrays.stream(c.split(c.inflections())))
         .collect(Collectors.toList());
 
-    bounds = curves.stream().map(Curve2::endpoints).reduce(Interval2::union).get();
+    bounds = curves.stream().map(c -> Box.from(c.start(), c.end())).reduce(Box2::union).get();
   }
 
   public CurveRing2 reverse() {
@@ -35,5 +35,9 @@ public class CurveRing2 {
     LinearSegment2 ray = new LinearSegment2(p, Vec.from(bounds.upper.x + 1, p.y));
 
     return curves.stream().filter(c -> c.intersections(ray).length > 0).count() % 2 == 1;
+  }
+
+  public Box2 bounds() {
+    return bounds;
   }
 }

@@ -5,6 +5,7 @@ import io.lacuna.artifex.utils.Hashes;
 import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec2.angleBetween;
 import static java.lang.Math.PI;
+import static java.lang.Math.acos;
 
 /**
  * @author ztellman
@@ -75,8 +76,19 @@ public class CircularSegment2 implements Curve2 {
     }
 
     return new CircularSegment2[]{
-        new CircularSegment2(c, ca, (theta * t), r),
-        new CircularSegment2(c, position(t), theta * (1 - t), r)};
+            new CircularSegment2(c, ca, (theta * t), r),
+            new CircularSegment2(c, ca.rotate(theta * t), theta * (1 - t), r)};
+  }
+
+  @Override
+  public Vec2[] subdivide(double error) {
+    double thetaIncrement = 2 * acos((-error / r) + 1);
+
+    Vec2[] rs = new Vec2[2 + (int) (-this.theta / thetaIncrement)];
+    for (int i = 0; i < rs.length; i++) {
+      rs[i] = position(i / (double) (rs.length - 1));
+    }
+    return rs;
   }
 
   @Override
@@ -149,6 +161,6 @@ public class CircularSegment2 implements Curve2 {
 
   @Override
   public String toString() {
-    return "p0=" + position(0) + ", p1=" + position(1) + ", radius=" + r;
+    return "p0=" + start() + ", p1=" + end() + ", radius=" + r;
   }
 }

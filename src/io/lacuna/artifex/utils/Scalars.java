@@ -14,6 +14,6 @@ public class Scalars {
   }
 
   public static boolean inside(double n, double min, double max) {
-    return min <= n && n <= max;
+    return min < n && n < max;
   }
 }

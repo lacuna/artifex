@@ -1,22 +1,161 @@
-package io.lacuna.artifex.utils;
-
-import io.lacuna.artifex.*;
+package io.lacuna.artifex;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.Vec.dot;
+import static io.lacuna.artifex.Vec.lerp;
+import static io.lacuna.artifex.Vec2.cross;
 import static java.lang.Integer.bitCount;
 import static java.lang.Math.*;
+import static java.lang.Math.abs;
 
 /**
- * Much of the implementation here is adapted from https://github.com/Chlumsky/msdfgen, which is available under the MIT
- * license.
- *
  * @author ztellman
  */
 public class DistanceField {
+
+  private final float[][][] field;
+  private final Box2 shapeBounds;
+  private final Box2 fieldBounds;
+
+  private DistanceField(float[][][] field, Box2 shapeBounds, Box2 fieldBounds) {
+    this.field = field;
+    this.shapeBounds = shapeBounds;
+    this.fieldBounds = fieldBounds;
+  }
+
+  public int width() {
+    return field.length;
+  }
+
+  public int height() {
+    return field[0].length;
+  }
+
+  public Box2 shapeBounds() {
+    return shapeBounds;
+  }
+
+  public Box2 fieldBounds() {
+    return fieldBounds;
+  }
+
+  private static Vec3 normalizedPixel(Vec3 pixel, float scale) {
+    return pixel.div(scale / 2).add(0.5).clamp(0, 1);
+  }
+
+  private Vec3 pixel(int x, int y) {
+    float[] pixel = field[x][y];
+    return new Vec3(pixel[0], pixel[1], pixel[2]);
+  }
+
+  public Vec3 get(double x, double y) {
+    int x1 = (int) (x * (width() - 1));
+    int x2 = min(width() - 1, x1 + 1);
+    int y1 = (int) (y * (height() - 1));
+    int y2 = min(height() - 1, y1 + 1);
+
+    double xt = (x * width()) - x1;
+    double yt = (y * height()) - y1;
+
+    return lerp(
+            lerp(pixel(x1, y1), pixel(x1, y2), yt),
+            lerp(pixel(x2, y1), pixel(x2, y2), yt),
+            xt);
+  }
+
+  public Vec3 normalized(double x, double y, double scale) {
+    return get(x, y).div(scale / 2).add(0.5).clamp(0, 1);
+  }
+
+  public Vec3 test(double x, double y) {
+    return get(x, y).map(n -> n < 0 ? 0 : 1);
+  }
+
+  public Vec3 rendered(double x, double y) {
+    Vec3 pixel = get(x, y);
+    return median(pixel.x, pixel.y, pixel.z) < 0 ? Vec3.ORIGIN : Vec.from(1, 1, 1);
+  }
+
+  public Vec3 pixel(int x, int y, float scale) {
+    float[] colors = field[x][y];
+    return new Vec3(colors[0], colors[1], colors[2]).div(scale / 2).add(0.5).clamp(0, 1);
+  }
+
+  public static DistanceField from(List<CurveRing2> rings, double sampleFrequency) {
+    return from(rings, sampleFrequency, Math.toRadians(3));
+  }
+
+  public static DistanceField from(List<CurveRing2> rings, double sampleFrequency, double cornerThreshold) {
+
+    Box2 shapeBounds = rings.stream().map(CurveRing2::bounds).reduce(Box2::union).get();
+    int w = (int) Math.ceil(shapeBounds.size().x * sampleFrequency);
+    int h = (int) Math.ceil(shapeBounds.size().y * sampleFrequency);
+    Vec2 pixelSize = shapeBounds.size().div(Vec.from(w, h));
+    Box2 fieldBounds = shapeBounds.expand(pixelSize.mul(2));
+
+    // if our point isn't outside the curves, we've got the winding direction wrong
+    if (insideRings(rings, fieldBounds.lower())) {
+      rings = rings.stream().map(CurveRing2::reverse).collect(Collectors.toList());
+    }
+
+    Map<Curve2, Byte> curveMap = new HashMap<>();
+    for (CurveRing2 ring : rings) {
+      curveMap.putAll(edgeColors(ring, cornerThreshold));
+    }
+
+    List<Curve2> curves = new ArrayList<>(curveMap.keySet());
+    List<Box2> boxes = curves.stream().map(Curve2::bounds).collect(Collectors.toList());
+    byte[] colors = new byte[curves.size()];
+
+    Iterator<Byte> it = curveMap.values().iterator();
+    for (int i = 0; i < colors.length; i++) {
+      colors[i] = it.next();
+    }
+
+    float[][][] field = new float[w][h][3];
+    for (int x = 0; x < w; x++) {
+      for (int y = 0; y < h; y++) {
+        SignedDistance r, g, b;
+        r = g = b = null;
+        Vec2 t = new Vec2((x + 0.5) / (w + 1), (y + 0.5) / (h + 1));
+        Vec2 p = fieldBounds.lerp(t);
+
+        for (int i = 0; i < curves.size(); i++) {
+          byte color = colors[i];
+          Curve2 c = curves.get(i);
+          Box2 box = boxes.get(i);
+
+          // this is the minimum possible distance, based on the bounding box
+          double minDS = box.distanceSquared(p);
+          if (r == null || g == null || b == null || minDS <= r.distSquared || minDS <= g.distSquared || minDS <= b.distSquared) {
+            SignedDistance d = new SignedDistance(c, p);
+
+            if ((color & RED) > 0 && (r == null || r.compareTo(d) > 0)) {
+              r = d;
+            }
+            if ((color & GREEN) > 0 && (g == null || g.compareTo(d) > 0)) {
+              g = d;
+            }
+            if ((color & BLUE) > 0 && (b == null || b.compareTo(d) > 0)) {
+              b = d;
+            }
+          }
+        }
+
+        field[x][y][0] = r != null ? (float) r.distance() : 0f;
+        field[x][y][1] = g != null ? (float) g.distance() : 0f;
+        field[x][y][2] = b != null ? (float) b.distance() : 0f;
+      }
+    }
+
+    fixClashes(field, 0f);
+
+    return new DistanceField(field, shapeBounds, fieldBounds);
+  }
+
+  ////
 
   private static final byte BLACK = 0, RED = 1, GREEN = 2, YELLOW = 3, BLUE = 4, MAGENTA = 5, CYAN = 6, WHITE = 7;
 
@@ -194,13 +333,13 @@ public class DistanceField {
     switch (intersection) {
       case RED:
         return //abs(a[1] - b[1]) > threshold && abs(a[2] - b[2]) > threshold &&
-            abs(a[0]) >= abs(b[0]);
+                abs(a[0]) >= abs(b[0]);
       case BLUE:
         return //abs(a[0] - b[0]) > threshold && abs(a[2] - b[2]) > threshold &&
-            abs(a[1]) >= abs(b[1]);
+                abs(a[1]) >= abs(b[1]);
       case GREEN:
         return //abs(a[0] - b[0]) > threshold && abs(a[1] - b[1]) > threshold &&
-            abs(a[2]) >= abs(b[2]);
+                abs(a[2]) >= abs(b[2]);
       default:
         return false;
     }
@@ -220,7 +359,7 @@ public class DistanceField {
     if (aIn != bIn) return false;
     // If the change is 0 <-> 1 or 2 <-> 3 channels and not 1 <-> 1 or 2 <-> 2, it is not a clash
     if ((a[0] > 0 && a[1] > 0 && a[2] > 0) || (a[0] < 0 && a[1] < 0 && a[2] < 0)
-        || (b[0] > 0 && b[1] > 0 && b[2] > 0) || (b[0] < 0 && b[1] < 0 && b[2] < 0))
+            || (b[0] > 0 && b[1] > 0 && b[2] > 0) || (b[0] < 0 && b[1] < 0 && b[2] < 0))
       return false;
     // Find which color is which: _a, _b = the changing channels, _c = the remaining one
     float aa, ab, ba, bb, ac, bc;
@@ -240,7 +379,7 @@ public class DistanceField {
       } else
         return false; // this should never happen
     } else if ((a[1] > 0) != (b[1] > 0) && (a[1] < 0) != (b[1] < 0)
-        && (a[2] > 0) != (b[2] > 0) && (a[2] < 0) != (b[2] < 0)) {
+            && (a[2] > 0) != (b[2] > 0) && (a[2] < 0) != (b[2] < 0)) {
       aa = a[1];
       ba = b[1];
       ab = a[2];
@@ -251,8 +390,8 @@ public class DistanceField {
       return false;
     // Find if the channels are in fact discontinuous
     return (abs(aa - ba) >= threshold)
-        && (abs(ab - bb) >= threshold)
-        && abs(ac) >= abs(bc); // Out of the pair, only flag the pixel farther from a shape edge
+            && (abs(ab - bb) >= threshold)
+            && abs(ac) >= abs(bc); // Out of the pair, only flag the pixel farther from a shape edge
 
   }
 
@@ -266,10 +405,9 @@ public class DistanceField {
       for (int j = 0; j < height; j++) {
         float[] color = field[i][j];
         if ((i > 0 && clash(color, field[i - 1][j], threshold))
-            || (i < (width - 1) && clash(color, field[i + 1][j], threshold))
-            || (j > 0 && clash(color, field[i][j - 1], threshold))
-            || (j < (height - 1) && clash(color, field[i][j + 1], threshold))) {
-          System.out.println("clash! " + i + " " + j);
+                || (i < (width - 1) && clash(color, field[i + 1][j], threshold))
+                || (j > 0 && clash(color, field[i][j - 1], threshold))
+                || (j < (height - 1) && clash(color, field[i][j + 1], threshold))) {
           float median = (float) median(color[0], color[1], color[2]);
           color[0] = color[1] = color[2] = median;
         }
@@ -277,75 +415,13 @@ public class DistanceField {
     }
   }
 
-  public static boolean insideRings(List<CurveRing2> rings, Vec2 point) {
+  private static boolean insideRings(List<CurveRing2> rings, Vec2 point) {
     return rings.stream()
-        .flatMap(rs -> rs.curves().stream())
-        .map(c -> new SignedDistance(c, point))
-        .sorted()
-        .findFirst()
-        .get()
-        .inside;
-  }
-
-  public static float[][][] distanceField(
-      List<CurveRing2> rings,
-      int w,
-      int h,
-      Interval2 bounds,
-      double angleThreshold) {
-
-    Map<Curve2, Byte> curveMap = new HashMap<>();
-    for (CurveRing2 ring : rings) {
-      curveMap.putAll(edgeColors(ring, angleThreshold));
-    }
-
-    List<Curve2> curves = new ArrayList<>(curveMap.keySet());
-    List<Interval2> boxes = curves.stream().map(Curve2::bounds).collect(Collectors.toList());
-    byte[] colors = new byte[curves.size()];
-
-    Iterator<Byte> it = curveMap.values().iterator();
-    for (int i = 0; i < colors.length; i++) {
-      colors[i] = it.next();
-    }
-
-    float[][][] field = new float[w][h][3];
-    for (int x = 0; x < w; x++) {
-      for (int y = 0; y < h; y++) {
-        SignedDistance r, g, b;
-        r = g = b = null;
-        Vec2 t = new Vec2((x + 0.5) / (w + 1), (y + 0.5) / (h + 1));
-        Vec2 p = bounds.lerp(t);
-
-        for (int i = 0; i < curves.size(); i++) {
-          byte color = colors[i];
-          Curve2 c = curves.get(i);
-          Interval2 box = boxes.get(i);
-
-          // this is the minimum possible distance, based on the bounding box
-          double minDS = box.distanceSquared(p);
-          if (r == null || g == null || b == null || minDS <= r.distSquared || minDS <= g.distSquared || minDS <= b.distSquared) {
-            SignedDistance d = new SignedDistance(c, p);
-
-            if ((color & RED) > 0 && (r == null || r.compareTo(d) > 0)) {
-              r = d;
-            }
-            if ((color & GREEN) > 0 && (g == null || g.compareTo(d) > 0)) {
-              g = d;
-            }
-            if ((color & BLUE) > 0 && (b == null || b.compareTo(d) > 0)) {
-              b = d;
-            }
-          }
-        }
-
-        field[x][y][0] = r != null ? (float) r.distance() : 0f;
-        field[x][y][1] = g != null ? (float) g.distance() : 0f;
-        field[x][y][2] = b != null ? (float) b.distance() : 0f;
-      }
-    }
-
-    //fixClashes(field, 0f);
-
-    return field;
+            .flatMap(rs -> rs.curves().stream())
+            .map(c -> new SignedDistance(c, point))
+            .sorted()
+            .findFirst()
+            .get()
+            .inside;
   }
 }

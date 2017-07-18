@@ -1,5 +1,7 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Intersections;
+
 /**
  * @author ztellman
  */
@@ -9,29 +11,6 @@ public class LinearSegment2 implements Curve2 {
   public LinearSegment2(Vec2 a, Vec2 b) {
     this.a = a;
     this.b = b;
-  }
-
-  /**
-   * @return the point of intersection between the two line segments, or null if none exists or the segments are collinear
-   */
-  public static Vec2 intersection(LinearSegment2 p, LinearSegment2 q) {
-    Vec2 pv = p.b.sub(p.a);
-    Vec2 qv = q.b.sub(q.a);
-
-    double d = (-qv.x * pv.y) + (pv.x * qv.y);
-    if (d == 0) {
-      return null;
-    }
-
-    double s = ((-pv.y * (p.a.x - q.a.x)) + (pv.x * (p.a.y - q.a.y))) / d;
-    if (s >= 0 && s <= 1) {
-      double t = ((qv.x * (p.a.y - q.a.y)) - (qv.y * (p.a.x - q.a.x))) / d;
-      if (t >= 0 && t <= 1) {
-        return new Vec2(s, t);
-      }
-    }
-
-    return null;
   }
 
   public LinearSegment2 transform(Matrix3 m) {
@@ -78,13 +57,56 @@ public class LinearSegment2 implements Curve2 {
   }
 
   @Override
-  public Interval2 endpoints() {
-    return bounds();
+  public Vec2 start() {
+    return a;
   }
 
   @Override
-  public Interval2 bounds() {
-    return Interval.from(a, b);
+  public Vec2 end() {
+    return b;
+  }
+
+  @Override
+  public Vec2[] subdivide(double error) {
+    return new Vec2[]{a, b};
+  }
+
+  @Override
+  public double[] intersections(Curve2 c, double epsilon) {
+    if (c instanceof LinearSegment2) {
+      LinearSegment2 p = this;
+      LinearSegment2 q = (LinearSegment2) c;
+
+      Vec2 pv = p.b.sub(p.a);
+      Vec2 qv = q.b.sub(q.a);
+
+      double d = (-qv.x * pv.y) + (pv.x * qv.y);
+      if (d == 0) {
+        return new double[0];
+      }
+
+      double s = ((-pv.y * (p.a.x - q.a.x)) + (pv.x * (p.a.y - q.a.y))) / d;
+      if (s >= 0 && s <= 1) {
+        double t = ((qv.x * (p.a.y - q.a.y)) - (qv.y * (p.a.x - q.a.x))) / d;
+        if (t >= 0 && t <= 1) {
+          return new double[]{s, t};
+        }
+      }
+
+      return new double[0];
+    } else {
+      return Intersections.intersections(this, c, epsilon);
+    }
+  }
+
+  @Override
+  public double[] intersections(Curve2 c) {
+    return new double[0];
+  }
+
+  @Override
+  public Box2 bounds() {
+    return Box.from(a, b);
   }
 
   /**

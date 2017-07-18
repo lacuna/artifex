@@ -4,9 +4,6 @@ import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoublePredicate;
 import java.util.function.DoubleUnaryOperator;
 
-/**
- *
- */
 public class Vec1 implements Vec<Vec1> {
 
   public final double x;
@@ -27,7 +24,7 @@ public class Vec1 implements Vec<Vec1> {
 
   @Override
   public double reduce(DoubleBinaryOperator f) {
-    throw new IllegalStateException("can't perform reduction over vector of dim=1");
+    throw new IllegalStateException();
   }
 
   @Override
@@ -58,5 +55,14 @@ public class Vec1 implements Vec<Vec1> {
   public int dim() {
     return 1;
   }
-}
 
+  @Override
+  public double[] array() {
+    return new double[] {x};
+  }
+
+  @Override
+  public int compareTo(Vec1 o) {
+    return Double.compare(x, o.x);
+  }
+}

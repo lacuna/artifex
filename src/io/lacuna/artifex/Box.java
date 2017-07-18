@@ -7,22 +7,23 @@ import java.util.function.DoublePredicate;
  * @author ztellman
  */
 @SuppressWarnings("unchecked")
-public abstract class Interval<T extends Vec<T>, U extends Interval<T, U>> {
+public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
 
-  public static Interval2 from(Rectangle2D rect) {
-    return new Interval2(new Vec2(rect.getMinX(), rect.getMinY()), new Vec2(rect.getMaxX(), rect.getMaxY()));
+  public static Box2 from(Rectangle2D rect) {
+    return new Box2(new Vec2(rect.getMinX(), rect.getMinY()), new Vec2(rect.getMaxX(), rect.getMaxY()));
   }
 
-  public static Interval2 from(Vec2 a, Vec2 b) {
-    return new Interval2(a, b);
+  public static Box2 from(Vec2 a, Vec2 b) {
+    return new Box2(a, b);
   }
 
-  private static final DoublePredicate POSITIVE = d -> d >= 0;
+  private static final DoublePredicate POSITIVE = d -> d > 0;
+  private static final DoublePredicate NOT_NEGATIVE = d -> d >= 0;
 
   protected final T lower, upper;
   protected final boolean isEmpty;
 
-  Interval(T lower, T upper, boolean isEmpty) {
+  Box(T lower, T upper, boolean isEmpty) {
     this.lower = lower;
     this.upper = upper;
     this.isEmpty = isEmpty;
@@ -73,7 +74,7 @@ public abstract class Interval<T extends Vec<T>, U extends Interval<T, U>> {
   }
 
   public boolean contains(T v) {
-    return v.sub(lower).every(POSITIVE) && upper.sub(v).every(POSITIVE);
+    return v.sub(lower).every(NOT_NEGATIVE) && upper.sub(v).every(NOT_NEGATIVE);
   }
 
   public T size() {
@@ -111,7 +112,7 @@ public abstract class Interval<T extends Vec<T>, U extends Interval<T, U>> {
 
     T nLower = lower.map(n -> n - t);
     T nUpper = upper.map(n -> n + t);
-    if (nLower.sub(nUpper).any(POSITIVE)) {
+    if (nLower.sub(nUpper).any(NOT_NEGATIVE)) {
       return empty();
     } else {
       return construct(nLower, nUpper);
@@ -125,7 +126,7 @@ public abstract class Interval<T extends Vec<T>, U extends Interval<T, U>> {
 
     T nLower = lower.sub(v);
     T nUpper = upper.add(v);
-    if (nLower.sub(nUpper).any(POSITIVE)) {
+    if (nLower.sub(nUpper).any(NOT_NEGATIVE)) {
       return empty();
     } else {
       return construct(nLower, nUpper);
@@ -140,14 +141,14 @@ public abstract class Interval<T extends Vec<T>, U extends Interval<T, U>> {
     return (31 * lower.hashCode()) ^ upper.hashCode();
   }
 
-  public static <T extends Vec<T>, U extends Interval<T, U>> boolean equals(Interval<T, U> a, Interval<T, U> b, double epsilon) {
+  public static <T extends Vec<T>, U extends Box<T, U>> boolean equals(Box<T, U> a, Box<T, U> b, double epsilon) {
     return Vec.equals(a.lower, b.lower, epsilon) && Vec.equals(a.upper, b.upper, epsilon);
   }
 
   @Override
   public boolean equals(Object obj) {
-    if (obj instanceof Interval) {
-      Interval b = (Interval) obj;
+    if (obj instanceof Box) {
+      Box b = (Box) obj;
       if (isEmpty) {
         return b.isEmpty;
       }

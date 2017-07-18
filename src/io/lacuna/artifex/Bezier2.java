@@ -1,5 +1,11 @@
 package io.lacuna.artifex;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.DoubleFunction;
+import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
+
 import static io.lacuna.artifex.Vec.dot;
 import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec2.cross;
@@ -8,11 +14,14 @@ import static io.lacuna.artifex.utils.Equations.solveQuadratic;
 import static io.lacuna.artifex.utils.Scalars.inside;
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
+import static java.lang.Math.subtractExact;
 
 /**
  * @author ztellman
  */
 public class Bezier2 {
+
+  private static final Vec2[] VEC2_ARRAY = new Vec2[0];
 
   public static LinearSegment2 from(Vec2 p0, Vec2 p1) {
     return new LinearSegment2(p0, p1);
@@ -31,6 +40,16 @@ public class Bezier2 {
     return s == 0 ? -1 : s;
   }
 
+  private static <V extends Curve2> void subdivide(List<Vec2> result, V c, ToDoubleFunction<V> error, double maxError) {
+    if (error.applyAsDouble(c) <= maxError) {
+      result.add(c.start());
+    } else {
+      Curve2[] split = c.split(0.5);
+      subdivide(result, (V) split[0], error, maxError);
+      subdivide(result, (V) split[1], error, maxError);
+    }
+  }
+
   public static class QuadraticBezier2 implements Curve2 {
 
     public final Vec2 p0, p1, p2;
@@ -42,8 +61,13 @@ public class Bezier2 {
     }
 
     @Override
-    public Interval2 endpoints() {
-      return new Interval2(p0, p2);
+    public Vec2 start() {
+      return p0;
+    }
+
+    @Override
+    public Vec2 end() {
+      return p2;
     }
 
     @Override
@@ -77,6 +101,14 @@ public class Bezier2 {
       Vec2 f = lerp(p1, p2, t);
       Vec2 g = lerp(e, f, t);
       return new QuadraticBezier2[]{Bezier2.from(p0, e, g), Bezier2.from(g, f, p2)};
+    }
+
+    @Override
+    public Vec2[] subdivide(double error) {
+      List<Vec2> points = new ArrayList<>();
+      Bezier2.subdivide(points, this, b -> Vec.lerp(b.p0, b.p2, 0.5).sub(b.p1).lengthSquared(), error * error);
+      points.add(end());
+      return points.toArray(VEC2_ARRAY);
     }
 
     @Override
@@ -206,8 +238,13 @@ public class Bezier2 {
     }
 
     @Override
-    public Interval2 endpoints() {
-      return new Interval2(p0, p3);
+    public Vec2 start() {
+      return p0;
+    }
+
+    @Override
+    public Vec2 end() {
+      return p3;
     }
 
     @Override
@@ -225,6 +262,18 @@ public class Bezier2 {
       Vec2 j = lerp(f, g, t);
       Vec2 k = lerp(h, j, t);
       return new CubicBezier2[]{Bezier2.from(p0, e, h, k), Bezier2.from(k, j, g, p3)};
+    }
+
+    @Override
+    public Vec2[] subdivide(double error) {
+      List<Vec2> points = new ArrayList<>();
+      Bezier2.subdivide(points, this,
+              b -> Math.max(
+                      Vec.lerp(b.p0, b.p3, 1.0/3).sub(b.p1).lengthSquared(),
+                      Vec.lerp(b.p0, b.p3, 2.0/3).sub(b.p2).lengthSquared()),
+              error * error);
+      points.add(end());
+      return points.toArray(VEC2_ARRAY);
     }
 
     @Override

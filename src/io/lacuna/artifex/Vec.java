@@ -1,13 +1,19 @@
 package io.lacuna.artifex;
 
 import java.awt.geom.Point2D;
+import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.function.*;
+import java.util.stream.DoubleStream;
+import java.util.stream.StreamSupport;
 
 /**
  * @author ztellman
  */
 @SuppressWarnings("unchecked")
-public interface Vec<T extends Vec<T>> {
+public interface Vec<T extends Vec<T>> extends Comparable<T> {
 
   DoubleBinaryOperator ADD = (a, b) -> a + b;
   DoubleBinaryOperator MUL = (a, b) -> a * b;
@@ -76,12 +82,22 @@ public interface Vec<T extends Vec<T>> {
 
   int dim();
 
+  double[] array();
+
   default T add(T v) {
     return zip(v, ADD);
   }
 
+  default T add(final double n) {
+    return map(i -> i + n);
+  }
+
   default T sub(T v) {
     return zip(v, SUB);
+  }
+
+  default T sub(final double n) {
+    return map(i -> i - 1);
   }
 
   default T mul(T v) {
@@ -121,6 +137,14 @@ public interface Vec<T extends Vec<T>> {
     }
   }
 
+  default PrimitiveIterator.OfDouble iterator() {
+    return stream().iterator();
+  }
+
+  default DoubleStream stream() {
+    return DoubleStream.of(array());
+  }
+
   default T clamp(double min, double max) {
     return map(i -> Math.max(min, Math.min(max, i)));
   }
@@ -128,4 +152,5 @@ public interface Vec<T extends Vec<T>> {
   default T clamp(T min, T max) {
     return zip(min, Math::max).zip(max, Math::min);
   }
+
 }

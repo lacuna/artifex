@@ -2,16 +2,10 @@ package io.lacuna.artifex.utils;
 
 import io.lacuna.artifex.*;
 
-import java.util.HashSet;
-import java.util.Set;
-
-import static java.lang.Math.abs;
-import static java.lang.Math.addExact;
-
 /**
  * @author ztellman
  */
-public class Curves {
+public class Intersections {
 
   private static class CurveInterval {
     public final Curve2 c;
@@ -27,13 +21,11 @@ public class Curves {
     }
 
     public CurveInterval(Curve2 c) {
-      Interval2 endpoints = c.endpoints();
-
       this.c = c;
       this.tLo = 0;
       this.tHi = 1;
-      this.pLo = endpoints.lower();
-      this.pHi = endpoints.upper();
+      this.pLo = c.start();
+      this.pHi = c.end();
     }
 
     public static CurveInterval[] from(Curve2 c) {
@@ -43,12 +35,11 @@ public class Curves {
       } else {
         CurveInterval[] is = new CurveInterval[ts.length + 1];
 
-        Interval2 endpoints = c.endpoints();
         for (int i = 0; i < is.length; i++) {
           double lo = i == 0 ? 0 : ts[i - 1];
           double hi = i == is.length - 1 ? 1 : ts[i];
-          Vec2 pLo = lo == 0 ? endpoints.lower() : is[i - 1].pHi;
-          Vec2 pHi = hi == 1 ? endpoints.upper() : c.position(hi);
+          Vec2 pLo = lo == 0 ? c.start() : is[i - 1].pHi;
+          Vec2 pHi = hi == 1 ? c.end() : c.position(hi);
           is[i] = new CurveInterval(c, lo, hi, pLo, pHi);
         }
 
@@ -57,7 +48,7 @@ public class Curves {
     }
 
     public boolean intersects(CurveInterval c) {
-      return Interval.from(pLo, pHi).intersects(Interval.from(c.pLo, c.pHi));
+      return Box.from(pLo, pHi).intersects(Box.from(c.pLo, c.pHi));
     }
 
     public CurveInterval[] split() {
@@ -71,36 +62,39 @@ public class Curves {
     }
   }
 
+  private static int addIntersection(CurveInterval a, CurveInterval b, int idx, double[] ts, double epsilon) {
+    double aMid = (a.tLo + a.tHi) / 2;
+    double bMid = (b.tLo + b.tHi) / 2;
+    boolean aEndpoint = a.tLo < epsilon || (a.tHi + epsilon) > 1;
+    boolean bEndpoint = b.tLo < epsilon || (b.tHi + epsilon) > 1;
+
+    // touching endpoints aren't an intersection
+    if (aEndpoint && bEndpoint) {
+      return 0;
+    }
+
+    // is this a duplicate match
+    if (idx > 0 && Scalars.equals(aMid, ts[idx - 2], epsilon)) {
+      return 0;
+    }
+
+    // if the curves share a tangent at the first point of intersection, that's a problem
+    Vec2 aDir = a.dir(aMid);
+    Vec2 bDir = b.dir(bMid);
+    Vec2 nbDir = bDir.map(x -> -x);
+    if (idx == 0 && (Vec.equals(aDir, bDir, epsilon) || Vec.equals(aDir, nbDir, epsilon))) {
+      throw new IllegalArgumentException("overlapping curves have infinite points of intersection");
+    }
+
+    ts[idx] = aMid;
+    ts[idx + 1] = bMid;
+    return 2;
+  }
+
   private static int intersections(CurveInterval a, CurveInterval b, int idx, double[] ts, double epsilon) {
 
     if (a.tHi - a.tLo <= epsilon) {
-      double aMid = (a.tLo + a.tHi) / 2;
-      double bMid = (b.tLo + b.tHi) / 2;
-      boolean aEndpoint = a.tLo < epsilon || (a.tHi + epsilon) > 1;
-      boolean bEndpoint = b.tLo < epsilon || (a.tHi + epsilon) > 1;
-
-      // touching endpoints aren't an intersection
-      if (aEndpoint && bEndpoint) {
-        return 0;
-      }
-
-      // is this a duplicate match
-      if (idx > 0 && Scalars.equals(aMid, ts[idx - 2], epsilon)) {
-        return 0;
-      }
-
-      // if the curves share a tangent at the first point of intersection, that's a problem
-      Vec2 aDir = a.dir(aMid);
-      Vec2 bDir = b.dir(bMid);
-      Vec2 nbDir = bDir.map(x -> -x);
-      if (idx == 0 && (Vec.equals(aDir, bDir, epsilon) || Vec.equals(aDir, nbDir, epsilon))) {
-        throw new IllegalArgumentException("overlapping curves have infinite points of intersection");
-      }
-
-      ts[idx] = aMid;
-      ts[idx + 1] = bMid;
-      return 2;
-
+      return addIntersection(a, b, idx, ts, epsilon);
     }
 
     CurveInterval[] as = a.split();

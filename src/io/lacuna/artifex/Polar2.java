@@ -12,6 +12,10 @@ public class Polar2 {
     this.r = r;
   }
 
+  public Polar2 rotate(double theta) {
+    return new Polar2(this.theta + theta, r);
+  }
+
   public Vec2 vec2() {
     double x = Math.cos(theta);
     double y = Math.sin(theta);

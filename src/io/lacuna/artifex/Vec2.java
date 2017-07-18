@@ -2,6 +2,7 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 
+import java.util.Comparator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoublePredicate;
 import java.util.function.DoubleUnaryOperator;
@@ -16,6 +17,10 @@ public class Vec2 implements Vec<Vec2> {
   public final static Vec2 ORIGIN = new Vec2(0, 0);
   public static final Vec2 X_AXIS = new Vec2(1, 0);
   public static final Vec2 Y_AXIS = new Vec2(0, 1);
+
+  public static final Comparator<Vec2> COMPARATOR =
+          Comparator.comparingDouble((Vec2 v) -> v.x)
+                  .thenComparingDouble(v -> v.y);
 
   public final double x, y;
 
@@ -57,8 +62,8 @@ public class Vec2 implements Vec<Vec2> {
   @Override
   public double nth(int idx) {
     switch (idx) {
-      case 1: return x;
-      case 2: return y;
+      case 0: return x;
+      case 1: return y;
       default: throw new IndexOutOfBoundsException();
     }
   }
@@ -66,6 +71,11 @@ public class Vec2 implements Vec<Vec2> {
   @Override
   public int dim() {
     return 2;
+  }
+
+  @Override
+  public double[] array() {
+    return new double[] {x, y};
   }
 
   public Vec3 vec3(double z) {
@@ -129,4 +139,8 @@ public class Vec2 implements Vec<Vec2> {
     return String.format("[x=%f, y=%f]", x, y);
   }
 
+  @Override
+  public int compareTo(Vec2 o) {
+    return COMPARATOR.compare(this, o);
+  }
 }

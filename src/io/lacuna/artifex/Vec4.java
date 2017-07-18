@@ -2,6 +2,7 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 
+import java.util.Comparator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoublePredicate;
 import java.util.function.DoubleUnaryOperator;
@@ -10,6 +11,20 @@ import java.util.function.DoubleUnaryOperator;
  * @author ztellman
  */
 public class Vec4 implements Vec<Vec4> {
+
+  public final static Vec4 ORIGIN = new Vec4(0, 0, 0, 0);
+  public static final Vec4 X_AXIS = new Vec4(1, 0, 0, 0);
+  public static final Vec4 Y_AXIS = new Vec4(0, 1, 0, 0);
+  public static final Vec4 Z_AXIS = new Vec4(0, 0, 1, 0);
+  public static final Vec4 W_AXIS = new Vec4(0, 0, 0, 1);
+
+  public static final Comparator<Vec4> COMPARATOR =
+          Comparator.comparingDouble((Vec4 v) -> v.x)
+                  .thenComparingDouble(v -> v.y)
+                  .thenComparingDouble(v -> v.z)
+                  .thenComparingDouble(v -> v.w);
+
+
   public final double x, y, z, w;
 
   public Vec4(double x, double y, double z, double w) {
@@ -66,6 +81,19 @@ public class Vec4 implements Vec<Vec4> {
   }
 
   @Override
+  public double[] array() {
+    return new double[] {x, y, z, w};
+  }
+
+  public Vec3 vec3() {
+    return new Vec3(x, y, z);
+  }
+
+  public Vec2 vec2() {
+    return new Vec2(x, y);
+  }
+
+  @Override
   public int hashCode() {
     return Hashes.hash(x, y, z, w);
   }
@@ -82,5 +110,10 @@ public class Vec4 implements Vec<Vec4> {
   @Override
   public String toString() {
     return String.format("[x=%f, y=%f, z=%f, w=%f]", x, y, z, w);
+  }
+
+  @Override
+  public int compareTo(Vec4 o) {
+    return COMPARATOR.compare(this, o);
   }
 }

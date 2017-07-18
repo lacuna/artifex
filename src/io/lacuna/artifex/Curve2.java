@@ -1,6 +1,6 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.utils.Curves;
+import io.lacuna.artifex.utils.Intersections;
 
 /**
  * @author ztellman
@@ -13,13 +13,17 @@ public interface Curve2 {
    */
   Vec2 position(double t);
 
-  default Interval2 endpoints() {
-    return Interval.from(position(0), position(1));
+  default Vec2 start() {
+    return position(0);
+  }
+
+  default Vec2 end() {
+    return position(1);
   }
 
   /**
    * @param t a value within [0,1]
-   * @return the tangent at the interpolated position on the curve
+   * @return the tangent at the interpolated position on the curve, which is not normalized
    */
   Vec2 direction(double t);
 
@@ -30,10 +34,6 @@ public interface Curve2 {
   Curve2[] split(double t);
 
   default Curve2[] split(double[] ts) {
-
-    if (ts.length == 0) {
-      return new Curve2[]{this};
-    }
 
     Curve2[] result = new Curve2[ts.length + 1];
     Curve2 c = this;
@@ -46,7 +46,7 @@ public interface Curve2 {
       c = parts[1];
       scale /= p;
     }
-    result[ts.length - 1] = c;
+    result[result.length - 1] = c;
 
     return result;
   }
@@ -58,13 +58,15 @@ public interface Curve2 {
    */
   double nearestPoint(Vec2 p);
 
-  default Interval2 bounds() {
-    Interval2 bounds = endpoints();
+  default Box2 bounds() {
+    Box2 bounds = Box.from(start(), end());
     for (double t : inflections()) {
       bounds = bounds.union(position(t));
     }
     return bounds;
   }
+
+  Vec2[] subdivide(double error);
 
   Curve2 transform(Matrix3 m);
 
@@ -73,7 +75,7 @@ public interface Curve2 {
   double[] inflections();
 
   default double[] intersections(Curve2 c, double epsilon) {
-    return Curves.intersections(this, c, epsilon);
+    return Intersections.intersections(this, c, epsilon);
   }
 
   default double[] intersections(Curve2 c) {

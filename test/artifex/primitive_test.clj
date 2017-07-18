@@ -4,11 +4,11 @@
    [clojure.test :refer :all])
   (:import
    [io.lacuna.artifex.utils
-    Curves]
+    Intersections]
    [io.lacuna.artifex
-    Interval
-    Interval2
-    LinearRing2
+    Box
+    Box2
+    Polygon2$Ring
     LinearSegment2
     CircularSegment2
     Curve2
@@ -16,7 +16,9 @@
     Vec
     Vec2
     Vec3
-    Vec4]))
+    Vec4
+    Matrix3
+    Matrix4]))
 
 (defn v
   ([x y]
@@ -30,7 +32,7 @@
   (->> vs
     (map #(apply v %))
     vec
-    LinearRing2.))
+    Polygon2$Ring.))
 
 (defn bezier
   ([a b]
@@ -51,6 +53,21 @@
     Vec4 [(.x v) (.y v) (.z v) (.w v)]))
 
 ;;;
+
+(defn random-vector [min max]
+  (let [x (+ min (* (rand) (- max min)))
+        y (+ min (* (rand) (- max min)))]
+    (v x y)))
+
+(defn random-bezier [points min max]
+  (apply bezier (repeatedly points #(random-vector min max))))
+
+(defn random-circular-segment [min max]
+  (let [[a b] (repeatedly 2 #(random-vector min max))
+        r     (-> b (.sub a) .length (* (+ 0.5 (rand))))]
+    (circular-segment a b r)))
+
+;; vectors
 
 (deftest test-angle-between
   (let [half-pi (/ Math/PI 2)]
@@ -78,6 +95,8 @@
 
     ))
 
+;; LinearRing2
+
 (deftest test-ring2
   (let [vs [[0.0 0.0] [1.0 0.0] [1.0 1.0]]
         r (apply ring2 vs)]
@@ -86,8 +105,6 @@
     (is (= (first vs) (->> r .vertices iterator-seq (map unvertex) last)))
 
     (is (= 0.5 (.area r)))
-
-    (is (Vec/equals (v 0.66 0.33) (.centroid r) 0.01))
 
     (is (= true (->> vs (apply ring2) .isClockwise)))
     (is (= false (->> vs reverse (apply ring2) .isClockwise)))))
@@ -99,6 +116,8 @@
     true  [[0 0] [1 0] [1 1]]
     false [[0 0] [1 0] [1 1] [0.9 0.5]]
     true  [[0 0] [1 0] [1 1] [0 1]]))
+
+;; basic curves
 
 (deftest test-curves
   (let [quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
@@ -138,7 +157,7 @@
 
     ))
 
-;;;
+;; Curve2.split
 
 (defn sample-curve [^Curve2 c n]
   (->> (range n)
@@ -160,16 +179,17 @@
       (is (Vec/equals a b 1e-14)))))
 
 (deftest test-curve-split
-  (let [linear (Bezier2/from (v 0 0) (v 1 1))
-        quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
-        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
-        circle (CircularSegment2/from (v 0 -1) (v 0 1) 1)
-        splits (->> (range 1 10) (map #(/ 1 %)) (map double))]
-    (doseq [t splits]
-      (doseq [c [linear quad cubic circle]]
-        (split-and-check c t 100)))))
+  (dotimes [_ 1e2]
+    (let [linear (random-bezier 2 -1 1)
+          quad   (random-bezier 3 -1 1)
+          cubic  (random-bezier 4 -1 1)
+          circle (random-circular-segment -1 1)
+          splits (->> (range 1 10) (map #(/ 1 %)) (map double))]
+      (doseq [t splits]
+        (doseq [c [linear quad cubic circle]]
+          (split-and-check c t 100))))))
 
-;;;
+;; Curve2.nearestPoint
 
 (defn nearest-point [^Curve2 c ^Vec2 v]
   (->> (range (inc 1e3))
@@ -177,11 +197,6 @@
     (map double)
     (sort-by #(-> (.position c %) (.sub v) .lengthSquared))
     first))
-
-(defn random-vector [min max]
-  (let [x (+ min (* (rand) (- max min)))
-        y (+ min (* (rand) (- max min)))]
-    (v x y)))
 
 (deftest test-nearest-point
   (let [linear (Bezier2/from (v 0 0) (v 1 1))
@@ -196,24 +211,65 @@
               d1 (-> c (.position t1) (.sub v) .length)]
           (is (< (Math/abs (- d0 d1)) 1e-2) v))))))
 
-;;;
+;; Curve2.subdivide
+
+(defn subdivision-error [^Curve2 c ^double error]
+  (let [vs       (.subdivide c error)
+        segments (->> vs
+                   (partition 2 1)
+                   (map #(LinearSegment2. (first %) (second %))))]
+    (->> (range 1e2)
+      (map #(.position c (/ % 1e2)))
+      (map (fn [v]
+             (->> segments
+               (map (fn [^Curve2 c] (.position c (.nearestPoint c v))))
+               (map #(.lengthSquared (.sub v ^Vec2 %)))
+               (apply min)
+               Math/sqrt)))
+      (apply max))))
+
+(deftest test-subdivision
+  (doseq [points [3 4]]
+    (doseq [error (->> (range 4) (map #(Math/pow 10 (- %))))]
+      (dotimes [_ 10]
+        (is (>= error (subdivision-error (random-bezier points -10 10) error))))))
+
+  (doseq [error (->> (range 4) (map #(Math/pow 10 (- %))))]
+    (dotimes [_ 10]
+      (is (>= error (subdivision-error (random-circular-segment -10 10) error))))))
+
+;; Curve2.bounds
 
 (defn sampled-bounds [^Curve2 c n]
   (->> (range n)
     (map #(/ % (dec n)))
     (map #(.position c %))
-    (reduce #(.union ^Interval2 %1 ^Vec2 %2) Interval2/EMPTY)))
+    (reduce #(.union ^Box2 %1 ^Vec2 %2) Box2/EMPTY)))
 
 (defn check-bounds [^Curve2 c]
   (let [bounds (.bounds c)]
-    (is (Interval/equals bounds (.union bounds (sampled-bounds c 100)) 1e-14) (str c " "  bounds " " (.union bounds (sampled-bounds c 100))))))
+    (is
+      (Box/equals bounds (.union bounds (sampled-bounds c 100)) 1e-14)
+      (str c " "  bounds " " (.union bounds (sampled-bounds c 100))))))
 
 (deftest test-bounds
   (doseq [points [2 3 4]]
     (dotimes [_ 1e3]
-      (check-bounds (apply bezier (repeatedly points #(random-vector -10 10))))))
+      (check-bounds (random-bezier points -10 10))))
 
   (dotimes [_ 1e3]
-    (let [[a b] (repeatedly 2 #(random-vector -10 10))
-          r     (-> b (.sub a) .length (* (+ 0.5 (rand))))]
-      (check-bounds (circular-segment a b r)))))
+    (check-bounds (random-circular-segment -10 10))))
+
+;; Matrix3
+
+(deftest test-matrix-multiplication
+  (are [a b v]
+      (= (->> v (.transform a) (.transform b))
+        (.transform (.mul a b) v))
+
+    (Matrix3/scale 2.0) (Matrix3/translate 1 1) (v 1 1)
+    (Matrix3/rotate 1) (Matrix3/translate 1 1) (v 1 1)
+    (Matrix3/translate 1 1) (Matrix3/rotate 1) (v 1 1)
+
+    (Matrix4/translate 1 1 1) (Matrix4/scale 2.0) (v 1 1 1)
+    (Matrix4/scale 2.0) (Matrix4/translate 1 1 1) (v 1 1 1)))
