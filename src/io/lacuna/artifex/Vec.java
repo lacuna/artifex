@@ -15,29 +15,30 @@ import java.util.stream.StreamSupport;
 @SuppressWarnings("unchecked")
 public interface Vec<T extends Vec<T>> extends Comparable<T> {
 
+  DoubleUnaryOperator NEGATE = n -> -n;
   DoubleBinaryOperator ADD = (a, b) -> a + b;
   DoubleBinaryOperator MUL = (a, b) -> a * b;
   DoubleBinaryOperator SUB = (a, b) -> a - b;
   DoubleBinaryOperator DIV = (a, b) -> a / b;
   DoubleBinaryOperator DELTA = (a, b) -> Math.abs(a - b);
 
-  static Vec1 from(double x) {
-    return new Vec1(x);
-  }
-
-  static Vec2 from(double x, double y) {
-    return new Vec2(x, y);
-  }
-
   static Vec2 from(Point2D p) {
     return new Vec2(p.getX(), p.getY());
   }
 
-  static Vec3 from(double x, double y, double z) {
+  static Vec1 vec(double x) {
+    return new Vec1(x);
+  }
+
+  static Vec2 vec(double x, double y) {
+    return new Vec2(x, y);
+  }
+
+  static Vec3 vec(double x, double y, double z) {
     return new Vec3(x, y, z);
   }
 
-  static Vec4 from(double x, double y, double z, double w) {
+  static Vec4 vec(double x, double y, double z, double w) {
     return new Vec4(x, y, z, w);
   }
 
@@ -83,6 +84,10 @@ public interface Vec<T extends Vec<T>> extends Comparable<T> {
   int dim();
 
   double[] array();
+
+  default T negate() {
+    return map(NEGATE);
+  }
 
   default T add(T v) {
     return zip(v, ADD);

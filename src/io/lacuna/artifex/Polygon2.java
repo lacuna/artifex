@@ -138,8 +138,8 @@ public class Polygon2 {
 
         @Override
         public LinearSegment2 next() {
-          LinearSegment2 edge = new LinearSegment2(v, vertices.next());
-          v = edge.b;
+          LinearSegment2 edge = LinearSegment2.from(v, vertices.next());
+          v = edge.end();
           return edge;
         }
       };

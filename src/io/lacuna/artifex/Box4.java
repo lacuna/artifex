@@ -5,14 +5,46 @@ package io.lacuna.artifex;
  */
 public class Box4 extends Box<Vec4, Box4> {
 
-  public static final Box4 EMPTY = new Box4();
+  public static final Box4 EMPTY = new Box4(Vec4.ORIGIN, Vec4.ORIGIN);
+  
+  private final double lx, ly, lz, lw, ux, uy, uz, uw;
+  
+  private Box4(double ax, double ay, double az, double aw, double bx, double by, double bz, double bw) {
+    if (ax < bx) {
+      this.lx = ax;
+      this.ux = bx;
+    } else {
+      this.ux = ax;
+      this.lx = bx;
+    }
 
-  public Box4() {
-    super(null, null, true);
+    if (ay < by) {
+      this.ly = ay;
+      this.uy = by;
+    } else {
+      this.uy = ay;
+      this.ly = by;
+    }
+
+    if (az < bz) {
+      this.lz = az;
+      this.uz = bz;
+    } else {
+      this.uz = az;
+      this.lz = bz;
+    }
+
+    if (aw < bw) {
+      this.lw = aw;
+      this.uw = bw;
+    } else {
+      this.uw = aw;
+      this.lw = bw;
+    }
   }
-
+  
   public Box4(Vec4 a, Vec4 b) {
-    super(a.zip(b, Math::min), a.zip(b, Math::max), false);
+    this(a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w);
   }
 
   @Override
@@ -23,5 +55,20 @@ public class Box4 extends Box<Vec4, Box4> {
   @Override
   protected Box4 empty() {
     return EMPTY;
+  }
+
+  @Override
+  public Vec4 lower() {
+    return new Vec4(lx, ly, lz, lw);
+  }
+
+  @Override
+  public Vec4 upper() {
+    return new Vec4(ux, uy, uz, uw);
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return this == EMPTY;
   }
 }

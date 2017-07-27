@@ -23,15 +23,15 @@ public class Bezier2 {
 
   private static final Vec2[] VEC2_ARRAY = new Vec2[0];
 
-  public static LinearSegment2 from(Vec2 p0, Vec2 p1) {
-    return new LinearSegment2(p0, p1);
+  public static LinearSegment2 bezier(Vec2 p0, Vec2 p1) {
+    return LinearSegment2.from(p0, p1);
   }
 
-  public static QuadraticBezier2 from(Vec2 p0, Vec2 p1, Vec2 p2) {
+  public static QuadraticBezier2 bezier(Vec2 p0, Vec2 p1, Vec2 p2) {
     return new QuadraticBezier2(p0, p1, p2);
   }
 
-  public static CubicBezier2 from(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
+  public static CubicBezier2 bezier(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
     return new CubicBezier2(p0, p1, p2, p3);
   }
 
@@ -100,7 +100,7 @@ public class Bezier2 {
       Vec2 e = lerp(p0, p1, t);
       Vec2 f = lerp(p1, p2, t);
       Vec2 g = lerp(e, f, t);
-      return new QuadraticBezier2[]{Bezier2.from(p0, e, g), Bezier2.from(g, f, p2)};
+      return new QuadraticBezier2[]{bezier(p0, e, g), bezier(g, f, p2)};
     }
 
     @Override
@@ -261,7 +261,7 @@ public class Bezier2 {
       Vec2 h = lerp(e, f, t);
       Vec2 j = lerp(f, g, t);
       Vec2 k = lerp(h, j, t);
-      return new CubicBezier2[]{Bezier2.from(p0, e, h, k), Bezier2.from(k, j, g, p3)};
+      return new CubicBezier2[]{bezier(p0, e, h, k), bezier(k, j, g, p3)};
     }
 
     @Override

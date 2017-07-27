@@ -2,6 +2,8 @@ package io.lacuna.artifex.utils;
 
 import io.lacuna.artifex.*;
 
+import static io.lacuna.artifex.Box.box;
+
 /**
  * @author ztellman
  */
@@ -48,7 +50,7 @@ public class Intersections {
     }
 
     public boolean intersects(CurveInterval c) {
-      return Box.from(pLo, pHi).intersects(Box.from(c.pLo, c.pHi));
+      return box(pLo, pHi).intersects(box(c.pLo, c.pHi));
     }
 
     public CurveInterval[] split() {

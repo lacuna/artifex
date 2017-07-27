@@ -21,11 +21,11 @@
     Matrix4]))
 
 (defn v
-  ([x y]
+  ([^double x ^double y]
    (Vec2. x y))
-  ([x y z]
+  ([^double x ^double y ^double z]
    (Vec3. x y z))
-  ([x y z w]
+  ([^double x ^double y ^double z ^double w]
    (Vec4. x y z w)))
 
 (defn ring2 [& vs]
@@ -36,11 +36,11 @@
 
 (defn bezier
   ([a b]
-   (Bezier2/from a b))
+   (Bezier2/bezier a b))
   ([a b c]
-   (Bezier2/from a b c))
+   (Bezier2/bezier a b c))
   ([a b c d]
-   (Bezier2/from a b c d)))
+   (Bezier2/bezier a b c d)))
 
 (defn circular-segment
   [a b r]
@@ -120,8 +120,8 @@
 ;; basic curves
 
 (deftest test-curves
-  (let [quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
-        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
+  (let [quad   (Bezier2/bezier (v 0 0) (v 1 1) (v 2 0))
+        cubic  (Bezier2/bezier (v 0 0) (v 1 1) (v 2 1) (v 3 0))
         circle (CircularSegment2/from (v 0 -1) (v 0 1) 1)
         isq2   (/ 1 (Math/sqrt 2))]
 
@@ -199,9 +199,9 @@
     first))
 
 (deftest test-nearest-point
-  (let [linear (Bezier2/from (v 0 0) (v 1 1))
-        quad   (Bezier2/from (v 0 0) (v 1 1) (v 2 0))
-        cubic  (Bezier2/from (v 0 0) (v 1 1) (v 2 1) (v 3 0))
+  (let [linear (bezier (v 0 0) (v 1 1))
+        quad   (bezier (v 0 0) (v 1 1) (v 2 0))
+        cubic  (bezier (v 0 0) (v 1 1) (v 2 1) (v 3 0))
         circle (CircularSegment2/from (v -1 0) (v 0 1) 1)]
     (doseq [v (repeatedly 1e3 #(random-vector -5 5))]
       (doseq [c [linear quad cubic circle]]
@@ -217,7 +217,7 @@
   (let [vs       (.subdivide c error)
         segments (->> vs
                    (partition 2 1)
-                   (map #(LinearSegment2. (first %) (second %))))]
+                   (map #(LinearSegment2/from (first %) (second %))))]
     (->> (range 1e2)
       (map #(.position c (/ % 1e2)))
       (map (fn [v]

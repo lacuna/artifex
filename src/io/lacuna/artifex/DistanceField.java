@@ -5,8 +5,8 @@ import java.util.stream.Collectors;
 
 import static io.lacuna.artifex.Vec.dot;
 import static io.lacuna.artifex.Vec.lerp;
+import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.Vec2.cross;
-import static java.lang.Integer.bitCount;
 import static java.lang.Math.*;
 import static java.lang.Math.abs;
 
@@ -41,8 +41,8 @@ public class DistanceField {
     return fieldBounds;
   }
 
-  private static Vec3 normalizedPixel(Vec3 pixel, float scale) {
-    return pixel.div(scale / 2).add(0.5).clamp(0, 1);
+  private static Vec3 normalizedPixel(Vec3 pixel, float range) {
+    return pixel.div(range / 2).add(0.5).clamp(0, 1);
   }
 
   private Vec3 pixel(int x, int y) {
@@ -75,7 +75,7 @@ public class DistanceField {
 
   public Vec3 rendered(double x, double y) {
     Vec3 pixel = get(x, y);
-    return median(pixel.x, pixel.y, pixel.z) < 0 ? Vec3.ORIGIN : Vec.from(1, 1, 1);
+    return median(pixel.x, pixel.y, pixel.z) < 0 ? Vec3.ORIGIN : vec(1, 1, 1);
   }
 
   public Vec3 pixel(int x, int y, float scale) {
@@ -83,25 +83,30 @@ public class DistanceField {
     return new Vec3(colors[0], colors[1], colors[2]).div(scale / 2).add(0.5).clamp(0, 1);
   }
 
-  public static DistanceField from(List<CurveRing2> rings, double sampleFrequency) {
-    return from(rings, sampleFrequency, Math.toRadians(3));
+  public static DistanceField from(List<Path2> rings, double sampleFrequency) {
+    return from(rings, 4, sampleFrequency, Math.toRadians(3));
   }
 
-  public static DistanceField from(List<CurveRing2> rings, double sampleFrequency, double cornerThreshold) {
+  public static DistanceField from(List<Path2> rings, int padding, double sampleFrequency, double cornerThreshold) {
 
-    Box2 shapeBounds = rings.stream().map(CurveRing2::bounds).reduce(Box2::union).get();
+    // maybe try to fix this automatically?
+    if (rings.stream().anyMatch(p -> !p.isRing())) {
+      throw new IllegalArgumentException("all paths must be rings");
+    }
+
+    Box2 shapeBounds = rings.stream().map(Path2::bounds).reduce(Box2::union).get();
     int w = (int) Math.ceil(shapeBounds.size().x * sampleFrequency);
     int h = (int) Math.ceil(shapeBounds.size().y * sampleFrequency);
-    Vec2 pixelSize = shapeBounds.size().div(Vec.from(w, h));
-    Box2 fieldBounds = shapeBounds.expand(pixelSize.mul(2));
+    Vec2 pixelSize = shapeBounds.size().div(vec(w, h));
+    Box2 fieldBounds = shapeBounds.expand(pixelSize.mul(padding));
 
     // if our point isn't outside the curves, we've got the winding direction wrong
     if (insideRings(rings, fieldBounds.lower())) {
-      rings = rings.stream().map(CurveRing2::reverse).collect(Collectors.toList());
+      rings = rings.stream().map(Path2::reverse).collect(Collectors.toList());
     }
 
     Map<Curve2, Byte> curveMap = new HashMap<>();
-    for (CurveRing2 ring : rings) {
+    for (Path2 ring : rings) {
       curveMap.putAll(edgeColors(ring, cornerThreshold));
     }
 
@@ -150,7 +155,7 @@ public class DistanceField {
       }
     }
 
-    fixClashes(field, 0f);
+    fixClashes(field, vec(0, 0));
 
     return new DistanceField(field, shapeBounds, fieldBounds);
   }
@@ -220,7 +225,7 @@ public class DistanceField {
     return dot(ta, tb) <= 0 || abs(cross(ta, tb)) > crossThreshold;
   }
 
-  private static List<Integer> cornerIndices(CurveRing2 ring, double angleThreshold) {
+  private static List<Integer> cornerIndices(Path2 ring, double angleThreshold) {
     List<Integer> corners = new ArrayList<>();
     List<Curve2> curves = ring.curves();
     double crossThreshold = sin(angleThreshold);
@@ -241,7 +246,7 @@ public class DistanceField {
     return c.split(new double[]{0.33, 0.66});
   }
 
-  private static Map<Curve2, Byte> edgeColors(CurveRing2 ring, double angleThreshold) {
+  private static Map<Curve2, Byte> edgeColors(Path2 ring, double angleThreshold) {
     Map<Curve2, Byte> edgeColors = new HashMap<>();
     List<Integer> corners = cornerIndices(ring, angleThreshold);
     List<Curve2> curves = ring.curves();
@@ -297,62 +302,7 @@ public class DistanceField {
     return max(min(a, b), min(max(a, b), c));
   }
 
-  /**
-   * Checks whether two adjacent texels are "inside" on different channels, such that a linear interpolation might make
-   * something in between "outside".
-   */
-  private static boolean clash(float[] a, float[] b, float threshold) {
-    byte aPos, bPos, aNeg, bNeg;
-    aPos = bPos = aNeg = bNeg = 0;
-    for (int i = 0; i < 3; i++) {
-      if (a[i] < 0) {
-        aNeg |= 1;
-      } else if (a[i] > 0) {
-        aPos |= 1;
-      }
-
-      if (b[i] < 0) {
-        bNeg |= 1;
-      } else if (b[i] > 0) {
-        bPos |= 1;
-      }
-
-      aPos <<= 1;
-      bPos <<= 1;
-      aNeg <<= 1;
-      bNeg <<= 1;
-    }
-
-    int intersection = 0;
-    if (bitCount(aPos) == 2 && bitCount(bPos) == 2 && bitCount(aPos ^ bPos) == 2) {
-      intersection = aPos & bPos;
-    } else if (bitCount(aNeg) == 2 && bitCount(bNeg) == 2 && bitCount(aNeg ^ bNeg) == 2) {
-      intersection = aNeg & bNeg;
-    }
-
-    switch (intersection) {
-      case RED:
-        return //abs(a[1] - b[1]) > threshold && abs(a[2] - b[2]) > threshold &&
-                abs(a[0]) >= abs(b[0]);
-      case BLUE:
-        return //abs(a[0] - b[0]) > threshold && abs(a[2] - b[2]) > threshold &&
-                abs(a[1]) >= abs(b[1]);
-      case GREEN:
-        return //abs(a[0] - b[0]) > threshold && abs(a[1] - b[1]) > threshold &&
-                abs(a[2]) >= abs(b[2]);
-      default:
-        return false;
-    }
-
-
-    /*return (bitCount(aNeg) == 2 && bitCount(bNeg) == 2 && bitCount(aNeg ^ bNeg) == 2)
-        || (bitCount(aPos) == 2 && bitCount(bPos) == 2 && bitCount(aPos ^ bPos) == 2);
-    //|| (bitCount(aPos) == 1 && bitCount(bPos) == 1 && bitCount(aPos ^ bPos) == 0);
-    */
-
-  }
-
-  private static boolean clash1(float[] a, float[] b, float threshold) {
+  private static boolean clash(float[] a, float[] b, double threshold) {
     // Only consider pair where both are on the inside or both are on the outside
     boolean aIn = (a[0] > 0 ? 1 : 0) + (a[1] > 0 ? 1 : 0) + (a[2] > 0 ? 1 : 0) >= 2;
     boolean bIn = (b[0] > 0 ? 1 : 0) + (b[1] > 0 ? 1 : 0) + (b[2] > 0 ? 1 : 0) >= 2;
@@ -398,16 +348,16 @@ public class DistanceField {
   /**
    * If there's potential for a clash between two texels which are both inside, just set all channels to the same value.
    */
-  private static void fixClashes(float[][][] field, float threshold) {
+  private static void fixClashes(float[][][] field, Vec2 threshold) {
     int width = field.length;
     int height = field[0].length;
     for (int i = 0; i < width; i++) {
       for (int j = 0; j < height; j++) {
         float[] color = field[i][j];
-        if ((i > 0 && clash(color, field[i - 1][j], threshold))
-                || (i < (width - 1) && clash(color, field[i + 1][j], threshold))
-                || (j > 0 && clash(color, field[i][j - 1], threshold))
-                || (j < (height - 1) && clash(color, field[i][j + 1], threshold))) {
+        if ((i > 0 && clash(color, field[i - 1][j], threshold.x))
+                || (i < (width - 1) && clash(color, field[i + 1][j], threshold.x))
+                || (j > 0 && clash(color, field[i][j - 1], threshold.y))
+                || (j < (height - 1) && clash(color, field[i][j + 1], threshold.y))) {
           float median = (float) median(color[0], color[1], color[2]);
           color[0] = color[1] = color[2] = median;
         }
@@ -415,7 +365,7 @@ public class DistanceField {
     }
   }
 
-  private static boolean insideRings(List<CurveRing2> rings, Vec2 point) {
+  private static boolean insideRings(List<Path2> rings, Vec2 point) {
     return rings.stream()
             .flatMap(rs -> rs.curves().stream())
             .map(c -> new SignedDistance(c, point))

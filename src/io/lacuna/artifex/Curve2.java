@@ -2,6 +2,8 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Intersections;
 
+import static io.lacuna.artifex.Box.box;
+
 /**
  * @author ztellman
  */
@@ -59,7 +61,7 @@ public interface Curve2 {
   double nearestPoint(Vec2 p);
 
   default Box2 bounds() {
-    Box2 bounds = Box.from(start(), end());
+    Box2 bounds = box(start(), end());
     for (double t : inflections()) {
       bounds = bounds.union(position(t));
     }
