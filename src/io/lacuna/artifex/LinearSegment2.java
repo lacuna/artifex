@@ -29,7 +29,7 @@ public class LinearSegment2 implements Curve2 {
   }
 
   public LinearSegment2 transform(Matrix3 m) {
-    return LinearSegment2.from(m.transform(start()), m.transform(end()));
+    return LinearSegment2.from(start().transform(m), end().transform(m));
   }
 
   @Override

@@ -111,7 +111,9 @@ public class CircularSegment2 implements Curve2 {
 
   @Override
   public Curve2 transform(Matrix3 m) {
-    return CircularSegment2.from(position(0), position(1), r);
+    Vec2 cp = c.transform(m);
+    Vec2 cap = ca.transform(m);
+    return new CircularSegment2(cp, cap, theta, cap.sub(ca).length());
   }
 
   @Override

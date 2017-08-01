@@ -13,6 +13,7 @@
     CircularSegment2
     Curve2
     Bezier2
+    Path2
     Vec
     Vec2
     Vec3

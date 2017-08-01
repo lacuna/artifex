@@ -8,6 +8,7 @@ import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static java.lang.System.arraycopy;
 
 /**
  * @author ztellman
@@ -54,5 +55,21 @@ public class Path2 {
 
   public Box2 bounds() {
     return bounds;
+  }
+
+  public Vec2[] subdivide(double error) {
+    List<Vec2[]> segments = curves.stream().map(c -> c.subdivide(error)).collect(Collectors.toList());
+    int length = segments.stream().mapToInt(c -> c.length).sum() - (segments.size() - 1);
+
+    Vec2[] result = new Vec2[length];
+    int idx = 0;
+    for (int i = 0; i < segments.size(); i++) {
+      int offset = i == 0 ? 0 : 1;
+      int len = segments.get(i).length - offset;
+      arraycopy(segments.get(i), offset, result, idx, len);
+      idx += len;
+    }
+
+    return result;
   }
 }
