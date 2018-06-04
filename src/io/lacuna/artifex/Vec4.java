@@ -19,10 +19,10 @@ public class Vec4 implements Vec<Vec4> {
   public static final Vec4 W_AXIS = new Vec4(0, 0, 0, 1);
 
   public static final Comparator<Vec4> COMPARATOR =
-          Comparator.comparingDouble((Vec4 v) -> v.x)
-                  .thenComparingDouble(v -> v.y)
-                  .thenComparingDouble(v -> v.z)
-                  .thenComparingDouble(v -> v.w);
+    Comparator.comparingDouble((Vec4 v) -> v.x)
+      .thenComparingDouble(v -> v.y)
+      .thenComparingDouble(v -> v.z)
+      .thenComparingDouble(v -> v.w);
 
 
   public final double x, y, z, w;
@@ -67,11 +67,16 @@ public class Vec4 implements Vec<Vec4> {
   @Override
   public double nth(int idx) {
     switch (idx) {
-      case 0: return x;
-      case 1: return y;
-      case 2: return z;
-      case 3: return w;
-      default: throw new IndexOutOfBoundsException();
+      case 0:
+        return x;
+      case 1:
+        return y;
+      case 2:
+        return z;
+      case 3:
+        return w;
+      default:
+        throw new IndexOutOfBoundsException();
     }
   }
 
@@ -82,7 +87,7 @@ public class Vec4 implements Vec<Vec4> {
 
   @Override
   public double[] array() {
-    return new double[] {x, y, z, w};
+    return new double[]{x, y, z, w};
   }
 
   public Vec3 vec3() {

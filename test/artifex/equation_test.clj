@@ -3,11 +3,12 @@
    [clojure.test :refer :all])
   (:import
    [io.lacuna.artifex.utils
+    Scalars
     Equations]))
 
 (defn approx-contains? [s x]
   (->> s
-    (filter #(< (Math/abs (- x %)) 1e-14))
+    (filter #(< (Math/abs (- x %)) Scalars/EPSILON))
     empty?
     not))
 

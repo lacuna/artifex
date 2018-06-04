@@ -1,41 +1,67 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Scalars;
+import io.lacuna.bifurcan.IList;
+import io.lacuna.bifurcan.LinearList;
+import io.lacuna.bifurcan.Lists;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.lang.System.arraycopy;
 
 /**
  * @author ztellman
  */
 public class Path2 {
 
-  private final List<Curve2> curves;
+  private final Curve2[] curves;
   private final Box2 bounds;
   private final boolean isRing;
 
-  public Path2(List<Curve2> curves) {
-    this.curves = curves.stream()
-        .flatMap(c -> Arrays.stream(c.split(c.inflections())))
-        .collect(Collectors.toList());
+  public static Path2 of(Curve2... curves) {
+    return new Path2(Arrays.asList(curves));
+  }
 
-    bounds = curves.stream().map(c -> box(c.start(), c.end())).reduce(Box2::union).get();
+  public static Path2 linear(Vec2... vertices) {
+    ArrayList<Curve2> segments = new ArrayList<>();
+    for (int i = 0; i < vertices.length - 1; i++) {
+      Vec2 a = vertices[i];
+      Vec2 b = vertices[i + 1];
+      if (!Vec.equals(a, b, EPSILON)) {
+        segments.add(LineSegment2.from(vertices[i], vertices[i + 1]));
+      }
+    }
+    return new Path2(segments);
+  }
 
-    Curve2 first = curves.get(0);
-    Curve2 last = curves.get(curves.size() - 1);
-    isRing = first.start().equals(last.end());
+  public Path2(Iterable<Curve2> cs) {
+
+    IList<Curve2> curves = new LinearList<>();
+    Box2 bounds = Box2.EMPTY;
+    for (Curve2 a : cs) {
+      for (Curve2 b : a.split(a.inflections())) {
+        curves.addLast(b);
+        bounds = bounds.union(b.start()).union(b.end());
+      }
+    }
+
+    this.bounds = bounds;
+    this.isRing = Vec.equals(curves.first().start(), curves.last().end(), EPSILON);
+    this.curves = curves.toArray(Curve2.class);
   }
 
   public Path2 reverse() {
-    return new Path2(curves.stream().map(Curve2::reverse).collect(Collectors.toList()));
+    return new Path2(Lists.reverse(Lists.lazyMap(Lists.from(curves), Curve2::reverse)));
   }
 
-  public List<Curve2> curves() {
+  public Curve2[] curves() {
     return curves;
   }
 
@@ -48,26 +74,32 @@ public class Path2 {
       throw new IllegalStateException("path is not a ring");
     }
 
-    LinearSegment2 ray = LinearSegment2.from(p, vec(bounds.ux + 1, p.y));
+    LineSegment2 ray = LineSegment2.from(p, vec(bounds.ux + 1, p.y));
 
-    return curves.stream().filter(c -> c.intersections(ray).length > 0).count() % 2 == 1;
+    return Arrays.stream(curves).filter(c -> c.intersects(ray)).count() % 2 == 1;
   }
 
   public Box2 bounds() {
     return bounds;
   }
 
-  public Vec2[] subdivide(double error) {
-    List<Vec2[]> segments = curves.stream().map(c -> c.subdivide(error)).collect(Collectors.toList());
-    int length = segments.stream().mapToInt(c -> c.length).sum() - (segments.size() - 1);
+  public Iterable<Vec2> vertices(double error) {
+    List<Vec2> result = new ArrayList<>();
+    for (Curve2 c : curves) {
+      Vec2[] segments = c.subdivide(error);
+      if (result.isEmpty()) {
+        result.addAll(Arrays.asList(segments));
+      } else {
+        Vec2 t1 = result.get(result.size() - 1).sub(result.get(result.size() - 2)).norm();
+        Vec2 t2 = segments[1].sub(segments[0]).norm();
+        if (Vec.equals(t1, t2, EPSILON)) {
+          result.remove(result.size() - 1);
+        }
 
-    Vec2[] result = new Vec2[length];
-    int idx = 0;
-    for (int i = 0; i < segments.size(); i++) {
-      int offset = i == 0 ? 0 : 1;
-      int len = segments.get(i).length - offset;
-      arraycopy(segments.get(i), offset, result, idx, len);
-      idx += len;
+        for (int i = 1; i < segments.length; i++) {
+          result.add(segments[i]);
+        }
+      }
     }
 
     return result;

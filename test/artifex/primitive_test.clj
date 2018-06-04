@@ -1,18 +1,27 @@
 (ns artifex.primitive-test
   (:require
    [criterium.core :as c]
+   [clojure.string :as str]
    [clojure.test :refer :all])
   (:import
    [io.lacuna.artifex.utils
-    Intersections]
+    Intersections
+    PlaneSweep
+    MonotoneRegion
+    Scalars]
+   [java.util.function
+    ToDoubleFunction
+    Function
+    BiPredicate]
    [io.lacuna.artifex
     Box
     Box2
     Polygon2$Ring
-    LinearSegment2
-    CircularSegment2
+    LineSegment2
+    Arc2
     Curve2
     Bezier2
+    Region2
     Path2
     Vec
     Vec2
@@ -20,6 +29,23 @@
     Vec4
     Matrix3
     Matrix4]))
+
+;;;
+
+(defn to-double-function [f]
+  (reify ToDoubleFunction
+    (applyAsDouble [_ x]
+      (f x))))
+
+(defn function [f]
+  (reify Function
+    (apply [_ x]
+      (f x))))
+
+(defn bipredicate [f]
+  (reify BiPredicate
+    (test [_ a b]
+      (f a b))))
 
 (defn v
   ([^double x ^double y]
@@ -33,6 +59,7 @@
   (->> vs
     (map #(apply v %))
     vec
+    io.lacuna.bifurcan.LinearList/from
     Polygon2$Ring.))
 
 (defn bezier
@@ -43,9 +70,12 @@
   ([a b c d]
    (Bezier2/bezier a b c d)))
 
-(defn circular-segment
+(defn arc
   [a b r]
-  (CircularSegment2/from a b r))
+  (Arc2/from a b r true))
+
+(defn line-segment [a b]
+  (LineSegment2/from a b))
 
 (defn unvertex [v]
   (condp instance? v
@@ -63,10 +93,10 @@
 (defn random-bezier [points min max]
   (apply bezier (repeatedly points #(random-vector min max))))
 
-(defn random-circular-segment [min max]
+(defn random-arc [min max]
   (let [[a b] (repeatedly 2 #(random-vector min max))
         r     (-> b (.sub a) .length (* (+ 0.5 (rand))))]
-    (circular-segment a b r)))
+    (arc a b r)))
 
 ;; vectors
 
@@ -96,6 +126,48 @@
 
     ))
 
+;; MonotoneRegion
+
+(deftest test-vertex-type
+  (are [type a b c]
+      (= type
+        (-> (MonotoneRegion/vertexType a b c)
+          str
+          str/lower-case
+          keyword))
+
+    :merge   (v -1 0) (v 0 1) (v 1 0)
+    :start   (v -1 1) (v 0 0) (v 1 1)
+    :end     (v 1 0)  (v 0 1) (v -1 0)
+    :split   (v 1 1)  (v 0 0) (v -1 1)
+    :regular (v 0 0)  (v 0 1) (v 0 2)
+    :regular (v 0 2)  (v 0 1) (v 0 0)
+    ))
+
+;; PlaneSweep
+
+(deftest test-plane-sweep
+  (dotimes [_ 1e2]
+    (let [[a b]
+          (repeatedly 2
+            (fn []
+              (->> (repeatedly #(random-vector 0 1))
+                (take 1e2)
+                (partition 2)
+                (map #(apply line-segment %)))))
+
+          intersections
+          (->> (for [x a, y b] [x y])
+            (map set)
+            (filter #(.intersects ^LineSegment2 (first %) (second %)))
+            (into #{}))]
+      (is
+        (= intersections
+          (->>
+            (PlaneSweep/intersections a b (function identity))
+            (map #(set [(.a %) (.b %)]))
+            set))))))
+
 ;; LinearRing2
 
 (deftest test-ring2
@@ -121,14 +193,14 @@
 ;; basic curves
 
 (deftest test-curves
-  (let [quad   (Bezier2/bezier (v 0 0) (v 1 1) (v 2 0))
-        cubic  (Bezier2/bezier (v 0 0) (v 1 1) (v 2 1) (v 3 0))
-        circle (CircularSegment2/from (v 0 -1) (v 0 1) 1)
+  (let [quad   (bezier (v 0 0) (v 1 1) (v 2 0))
+        cubic  (bezier (v 0 0) (v 1 1) (v 2 1) (v 3 0))
+        circle (arc (v 0 -1) (v 0 1) 1)
         isq2   (/ 1 (Math/sqrt 2))]
 
     ;; position
     (are [b t coords]
-        (Vec/equals (apply v coords) (.position b t) 1e-14)
+        (Vec/equals (apply v coords) (.position b t) Scalars/EPSILON)
 
       circle 0   [0 -1]
       circle 0.5 [-1 0]
@@ -144,7 +216,7 @@
 
     ;; direction
     (are [b t coords]
-        (Vec/equals (apply v coords) (.norm (.direction b t)) 1e-14)
+        (Vec/equals (apply v coords) (.norm (.direction b t)) Scalars/EPSILON)
 
       circle 0   [-1 0]
       circle 0.5 [0 1]
@@ -177,14 +249,14 @@
     (doseq [[a b] (->> ts
                     (map #(.position c %))
                     (map vector (concat pa pb)))]
-      (is (Vec/equals a b 1e-14)))))
+      (is (Vec/equals a b Scalars/EPSILON)))))
 
 (deftest test-curve-split
   (dotimes [_ 1e2]
     (let [linear (random-bezier 2 -1 1)
           quad   (random-bezier 3 -1 1)
           cubic  (random-bezier 4 -1 1)
-          circle (random-circular-segment -1 1)
+          circle (random-arc -1 1)
           splits (->> (range 1 10) (map #(/ 1 %)) (map double))]
       (doseq [t splits]
         (doseq [c [linear quad cubic circle]]
@@ -203,7 +275,7 @@
   (let [linear (bezier (v 0 0) (v 1 1))
         quad   (bezier (v 0 0) (v 1 1) (v 2 0))
         cubic  (bezier (v 0 0) (v 1 1) (v 2 1) (v 3 0))
-        circle (CircularSegment2/from (v -1 0) (v 0 1) 1)]
+        circle (arc (v -1 0) (v 0 1) 1)]
     (doseq [v (repeatedly 1e3 #(random-vector -5 5))]
       (doseq [c [linear quad cubic circle]]
         (let [t0 (nearest-point c v)
@@ -218,7 +290,7 @@
   (let [vs       (.subdivide c error)
         segments (->> vs
                    (partition 2 1)
-                   (map #(LinearSegment2/from (first %) (second %))))]
+                   (map #(line-segment (first %) (second %))))]
     (->> (range 1e2)
       (map #(.position c (/ % 1e2)))
       (map (fn [v]
@@ -237,7 +309,7 @@
 
   (doseq [error (->> (range 4) (map #(Math/pow 10 (- %))))]
     (dotimes [_ 10]
-      (is (>= error (subdivision-error (random-circular-segment -10 10) error))))))
+      (is (>= error (subdivision-error (random-arc -10 10) error))))))
 
 ;; Curve2.bounds
 
@@ -250,7 +322,7 @@
 (defn check-bounds [^Curve2 c]
   (let [bounds (.bounds c)]
     (is
-      (Box/equals bounds (.union bounds (sampled-bounds c 100)) 1e-14)
+      (Box/equals bounds (.union bounds (sampled-bounds c 100)) Scalars/EPSILON)
       (str c " "  bounds " " (.union bounds (sampled-bounds c 100))))))
 
 (deftest test-bounds
@@ -259,14 +331,14 @@
       (check-bounds (random-bezier points -10 10))))
 
   (dotimes [_ 1e3]
-    (check-bounds (random-circular-segment -10 10))))
+    (check-bounds (random-arc -10 10))))
 
 ;; Matrix3
 
 (deftest test-matrix-multiplication
   (are [a b v]
       (= (->> v (.transform a) (.transform b))
-        (.transform (.mul a b) v))
+        (.transform (.mul b a) v))
 
     (Matrix3/scale 2.0) (Matrix3/translate 1 1) (v 1 1)
     (Matrix3/rotate 1) (Matrix3/translate 1 1) (v 1 1)

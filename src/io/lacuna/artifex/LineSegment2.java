@@ -3,38 +3,41 @@ package io.lacuna.artifex;
 import io.lacuna.artifex.utils.Hashes;
 import io.lacuna.artifex.utils.Intersections;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
 
 /**
  * @author ztellman
  */
-public class LinearSegment2 implements Curve2 {
+public class LineSegment2 implements Curve2 {
 
   private final double ax, ay, bx, by;
 
-  private LinearSegment2(double ax, double ay, double bx, double by) {
+  private LineSegment2(double ax, double ay, double bx, double by) {
     this.ax = ax;
     this.ay = ay;
     this.bx = bx;
     this.by = by;
   }
 
-  public static LinearSegment2 from(Vec2 a, Vec2 b) {
-    return new LinearSegment2(a.x, a.y, b.x, b.y);
+  public static LineSegment2 from(Vec2 a, Vec2 b) {
+    return new LineSegment2(a.x, a.y, b.x, b.y);
   }
 
-  public static LinearSegment2 from(Box2 b) {
-    return new LinearSegment2(b.lx, b.ly, b.ux, b.uy);
+  public static LineSegment2 from(Box2 b) {
+    return new LineSegment2(b.lx, b.ly, b.ux, b.uy);
   }
 
-  public LinearSegment2 transform(Matrix3 m) {
-    return LinearSegment2.from(start().transform(m), end().transform(m));
+  public LineSegment2 transform(Matrix3 m) {
+    return LineSegment2.from(start().transform(m), end().transform(m));
   }
 
   @Override
-  public LinearSegment2 reverse() {
-    return new LinearSegment2(bx, by, ax, ay);
+  public LineSegment2 reverse() {
+    return new LineSegment2(bx, by, ax, ay);
   }
 
   @Override
@@ -44,24 +47,24 @@ public class LinearSegment2 implements Curve2 {
 
   @Override
   public Vec2 position(double t) {
-    return Vec.lerp(start(), end(), t);
+    return new Vec2(ax + (bx - ax) * t, ay + (by - ay) * t);
   }
 
   @Override
   public Vec2 direction(double t) {
-    return end().sub(start());
+    return new Vec2(bx - ax, by - ay);
   }
 
   @Override
-  public LinearSegment2[] split(double t) {
+  public LineSegment2[] split(double t) {
     if (t == 0 || t == 1) {
-      return new LinearSegment2[]{this};
+      return new LineSegment2[]{this};
     } else if (t < 0 || t > 1) {
       throw new IllegalArgumentException("t must be within [0,1]");
     }
 
     Vec2 v = position(t);
-    return new LinearSegment2[]{LinearSegment2.from(start(), v), LinearSegment2.from(v, end())};
+    return new LineSegment2[]{from(start(), v), from(v, end())};
   }
 
   @Override
@@ -69,6 +72,11 @@ public class LinearSegment2 implements Curve2 {
     Vec2 bSa = end().sub(start());
     Vec2 pSa = p.sub(start());
     return Vec.dot(bSa, pSa) / bSa.lengthSquared();
+  }
+
+  @Override
+  public LineSegment2 end(Vec2 pos) {
+    return from(start(), pos);
   }
 
   @Override
@@ -83,21 +91,21 @@ public class LinearSegment2 implements Curve2 {
 
   @Override
   public Vec2[] subdivide(double error) {
-    return new Vec2[]{start(), end()};
+    return new Vec2[] {start(), end()};
   }
 
   @Override
-  public double[] intersections(Curve2 c, double epsilon) {
-    if (c instanceof LinearSegment2) {
-      LinearSegment2 p = this;
-      LinearSegment2 q = (LinearSegment2) c;
+  public double[] intersections(Curve2 c, double epsilon) throws CollinearException {
+    if (c instanceof LineSegment2) {
+      LineSegment2 p = this;
+      LineSegment2 q = (LineSegment2) c;
 
       Vec2 pv = p.end().sub(p.start());
       Vec2 qv = q.end().sub(q.start());
 
       double d = (-qv.x * pv.y) + (pv.x * qv.y);
       if (d == 0) {
-        return new double[0];
+        throw new CollinearException(this, c);
       }
 
       double s = ((-pv.y * (p.ax - q.ax)) + (pv.x * (p.ay - q.ay))) / d;
@@ -112,11 +120,6 @@ public class LinearSegment2 implements Curve2 {
     } else {
       return Intersections.intersections(this, c, epsilon);
     }
-  }
-
-  @Override
-  public double[] intersections(Curve2 c) {
-    return new double[0];
   }
 
   @Override
@@ -147,8 +150,8 @@ public class LinearSegment2 implements Curve2 {
 
   @Override
   public boolean equals(Object obj) {
-    if (obj instanceof LinearSegment2) {
-      LinearSegment2 s = (LinearSegment2) obj;
+    if (obj instanceof LineSegment2) {
+      LineSegment2 s = (LineSegment2) obj;
       return ax == s.ax && ay == s.ay && bx == s.bx && by == s.by;
     }
     return false;

@@ -5,6 +5,8 @@ package io.lacuna.artifex.utils;
  */
 public class Scalars {
 
+  public static final double EPSILON = 1e-14;
+
   public static boolean equals(double a, double b, double epsilon) {
     return Math.abs(a - b) <= epsilon;
   }
@@ -15,5 +17,23 @@ public class Scalars {
 
   public static boolean inside(double n, double min, double max) {
     return min < n && n < max;
+  }
+
+  public static double clamp(double min, double max, double n) {
+    if (n < min) {
+      return min;
+    } else if (n > max) {
+      return max;
+    } else {
+      return n;
+    }
+  }
+
+  public static double max(double a, double b) {
+    return a < b ? b : a;
+  }
+
+  public static double max(double a, double b, double c) {
+    return max(a, max(b, c));
   }
 }

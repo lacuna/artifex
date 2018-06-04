@@ -19,8 +19,8 @@ public class Vec2 implements Vec<Vec2> {
   public static final Vec2 Y_AXIS = new Vec2(0, 1);
 
   public static final Comparator<Vec2> COMPARATOR =
-          Comparator.comparingDouble((Vec2 v) -> v.x)
-                  .thenComparingDouble(v -> v.y);
+    Comparator.comparingDouble((Vec2 v) -> v.x)
+      .thenComparingDouble(v -> v.y);
 
   public final double x, y;
 
@@ -62,9 +62,12 @@ public class Vec2 implements Vec<Vec2> {
   @Override
   public double nth(int idx) {
     switch (idx) {
-      case 0: return x;
-      case 1: return y;
-      default: throw new IndexOutOfBoundsException();
+      case 0:
+        return x;
+      case 1:
+        return y;
+      default:
+        throw new IndexOutOfBoundsException();
     }
   }
 
@@ -75,7 +78,15 @@ public class Vec2 implements Vec<Vec2> {
 
   @Override
   public double[] array() {
-    return new double[] {x, y};
+    return new double[]{x, y};
+  }
+
+  public Vec2 add(double x, double y) {
+    return new Vec2(this.x + x, this.y + y);
+  }
+
+  public Vec2 sub(double x, double y) {
+    return new Vec2(this.x - x, this.y - y);
   }
 
   public Vec3 vec3(double z) {
@@ -84,6 +95,10 @@ public class Vec2 implements Vec<Vec2> {
 
   public Vec4 vec4(double z, double w) {
     return new Vec4(x, y, z, w);
+  }
+
+  public Vec4 vec4(Vec2 v) {
+    return new Vec4(x, y, v.x, v.y);
   }
 
   public Vec2 transform(Matrix3 m) {
@@ -142,5 +157,45 @@ public class Vec2 implements Vec<Vec2> {
   @Override
   public int compareTo(Vec2 o) {
     return COMPARATOR.compare(this, o);
+  }
+
+  @Override
+  public Vec2 add(Vec2 v) {
+    return new Vec2(x + v.x, y + v.y);
+  }
+
+  @Override
+  public Vec2 add(double n) {
+    return new Vec2(x + n, y + n);
+  }
+
+  @Override
+  public Vec2 negate() {
+    return new Vec2(-x, -y);
+  }
+
+  @Override
+  public Vec2 sub(Vec2 v) {
+    return new Vec2(x - v.x, y - v.y);
+  }
+
+  @Override
+  public Vec2 sub(double n) {
+    return new Vec2(x - n, y - n);
+  }
+
+  @Override
+  public Vec2 mul(Vec2 v) {
+    return new Vec2(x * v.x, y * v.y);
+  }
+
+  @Override
+  public Vec2 mul(double k) {
+    return new Vec2(x * k, y * k);
+  }
+
+  @Override
+  public Vec2 div(Vec2 v) {
+    return new Vec2(x / v.x, y / v.y);
   }
 }

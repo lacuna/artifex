@@ -9,7 +9,7 @@ public class Box3 extends Box<Vec3, Box3> {
   
   public final double lx, ly, lz, ux, uy, uz;
   
-  private Box3(double ax, double ay, double az, double bx, double by, double bz) {
+  Box3(double ax, double ay, double az, double bx, double by, double bz) {
     if (ax < bx) {
       this.lx = ax;
       this.ux = bx;
@@ -37,6 +37,10 @@ public class Box3 extends Box<Vec3, Box3> {
 
   public Box3(Vec3 a, Vec3 b) {
     this(a.x, a.y, a.z, b.x, b.y, b.z);
+  }
+
+  public Box2 box2() {
+    return new Box2(lx, ly, ux, uz);
   }
 
   @Override

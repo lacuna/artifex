@@ -1,8 +1,12 @@
 package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Intersections;
+import io.lacuna.artifex.utils.Scalars;
+
+import java.util.List;
 
 import static io.lacuna.artifex.Box.box;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
 
 /**
  * @author ztellman
@@ -24,6 +28,18 @@ public interface Curve2 {
   }
 
   /**
+   * @return an updated curve with the start point as {@code pos}
+   */
+  default Curve2 start(Vec2 pos) {
+    return reverse().end(pos).reverse();
+  }
+
+  /**
+   * @return an updated curve with the endpoint at {@code pos}
+   */
+  Curve2 end(Vec2 pos);
+
+  /**
    * @param t a value within [0,1]
    * @return the tangent at the interpolated position on the curve, which is not normalized
    */
@@ -36,7 +52,6 @@ public interface Curve2 {
   Curve2[] split(double t);
 
   default Curve2[] split(double[] ts) {
-
     Curve2[] result = new Curve2[ts.length + 1];
     Curve2 c = this;
 
@@ -76,11 +91,28 @@ public interface Curve2 {
 
   double[] inflections();
 
-  default double[] intersections(Curve2 c, double epsilon) {
+  default boolean collinear(Curve2 c) {
+    try {
+      intersections(c);
+      return false;
+    } catch (CollinearException e) {
+      return true;
+    }
+  }
+
+  default boolean intersects(Curve2 c) {
+    try {
+      return intersections(c).length > 0;
+    } catch (CollinearException e) {
+      return true;
+    }
+  }
+
+  default double[] intersections(Curve2 c, double epsilon) throws CollinearException {
     return Intersections.intersections(this, c, epsilon);
   }
 
-  default double[] intersections(Curve2 c) {
-    return intersections(c, 1e-14);
+  default double[] intersections(Curve2 c) throws CollinearException {
+    return intersections(c, EPSILON);
   }
 }

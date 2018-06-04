@@ -9,7 +9,7 @@ public class Plane3 {
 
   /**
    * @param normal the normal vector for the plane
-   * @param p the distance of the plane from the origin
+   * @param p      the distance of the plane from the origin
    */
   public Plane3(Vec3 normal, double p) {
     this.normal = normal.norm();

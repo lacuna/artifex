@@ -6,9 +6,9 @@ package io.lacuna.artifex;
 public class Box4 extends Box<Vec4, Box4> {
 
   public static final Box4 EMPTY = new Box4(Vec4.ORIGIN, Vec4.ORIGIN);
-  
+
   private final double lx, ly, lz, lw, ux, uy, uz, uw;
-  
+
   private Box4(double ax, double ay, double az, double aw, double bx, double by, double bz, double bw) {
     if (ax < bx) {
       this.lx = ax;
@@ -42,9 +42,17 @@ public class Box4 extends Box<Vec4, Box4> {
       this.lw = bw;
     }
   }
-  
+
   public Box4(Vec4 a, Vec4 b) {
     this(a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w);
+  }
+
+  public Box3 box3() {
+    return new Box3(lx, ly, lz, ux, uy, uz);
+  }
+
+  public Box2 box2() {
+    return new Box2(lx, ly, ux, uy);
   }
 
   @Override

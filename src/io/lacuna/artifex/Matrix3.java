@@ -1,5 +1,8 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Hashes;
+
+import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
@@ -36,9 +39,9 @@ public class Matrix3 {
 
   public static Matrix3 translate(double x, double y) {
     return new Matrix3(
-            1, 0, x,
-            0, 1, y,
-            0, 0, 1);
+      1, 0, x,
+      0, 1, y,
+      0, 0, 1);
   }
 
   public static Matrix3 translate(Vec2 v) {
@@ -89,7 +92,7 @@ public class Matrix3 {
       for (int j = 0; j < 3; j++) {
         double n = 0;
         for (int k = 0; k < 3; k++) {
-          n += get(k, j) * b.get(i, k);
+          n += b.get(k, j) * get(i, k);
         }
         es[(i * 3) + j] = n;
       }
@@ -105,17 +108,25 @@ public class Matrix3 {
     return new Matrix3(es);
   }
 
+  public Matrix4 matrix4() {
+    return new Matrix4(
+      elements[0], elements[1], 0, elements[2],
+      elements[3], elements[4], 0, elements[5],
+      elements[6], elements[7], elements[8], 0,
+      0, 0, 0, 1);
+  }
+
   public Matrix3 transpose() {
     return new Matrix3(
-            elements[0], elements[3], elements[6],
-            elements[1], elements[4], elements[7],
-            elements[2], elements[5], elements[8]);
+      elements[0], elements[3], elements[6],
+      elements[1], elements[4], elements[7],
+      elements[2], elements[5], elements[8]);
   }
 
   public Vec2 transform(Vec2 v) {
     return new Vec2(
-            (v.x * elements[0]) + (v.y * elements[1]) + elements[2],
-            (v.x * elements[3]) + (v.y * elements[4]) + elements[5]);
+      (v.x * elements[0]) + (v.y * elements[1]) + elements[2],
+      (v.x * elements[3]) + (v.y * elements[4]) + elements[5]);
   }
 
   public PrimitiveIterator.OfDouble rowMajor() {
@@ -140,5 +151,31 @@ public class Matrix3 {
     return transpose().rowMajor();
   }
 
+  @Override
+  public int hashCode() {
+    int hash = 0;
+    for (double n : elements) {
+      hash = (hash * 31) + Hashes.hash(n);
+    }
+    return hash;
+  }
 
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    } else if (obj instanceof Matrix3) {
+      Matrix3 m = (Matrix3) obj;
+      return Arrays.equals(elements, m.elements);
+    } else {
+      return false;
+    }
+  }
+
+  @Override
+  public String toString() {
+    StringBuffer s = new StringBuffer();
+    rowMajor().forEachRemaining((double n) -> s.append(n).append(", "));
+    return s.toString();
+  }
 }

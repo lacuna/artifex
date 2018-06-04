@@ -2,6 +2,9 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec2.angleBetween;
 import static java.lang.Math.PI;
@@ -10,10 +13,11 @@ import static java.lang.Math.acos;
 /**
  * @author ztellman
  */
-public class CircularSegment2 implements Curve2 {
+public class Arc2 implements Curve2 {
 
   public final Vec2 c, ca;
   public final double theta, r;
+  private double[] inflections;
 
   /**
    * @param a a point on the circle
@@ -21,7 +25,7 @@ public class CircularSegment2 implements Curve2 {
    * @param r the radius of the circle
    * @return a clockwise circular arc between {@code a} and {@code b}
    */
-  public static CircularSegment2 from(Vec2 a, Vec2 b, double r) {
+  public static Arc2 from(Vec2 a, Vec2 b, double r, boolean clockwise) {
 
     if (r <= 0) {
       throw new IllegalArgumentException("radius must be greater than 0");
@@ -40,21 +44,34 @@ public class CircularSegment2 implements Curve2 {
     Vec2 cb = b.sub(c).norm();
     double theta = angleBetween(ca, cb);
 
-    return new CircularSegment2(c, ca, theta > 0 ? theta - (PI * 2) : theta, r);
+    return new Arc2(
+      c,
+      clockwise ? ca : cb,
+      (theta > 0 ? theta - (PI * 2) : theta) * (clockwise ? 1 : -1),
+      r);
   }
 
-  private CircularSegment2(Vec2 c, Vec2 ca, double theta, double r) {
+  private Arc2(Vec2 c, Vec2 ca, double theta, double r) {
     this.c = c;
     this.ca = ca;
     this.theta = theta;
     this.r = r;
   }
 
+  @Override
+  public Arc2 end(Vec2 pos) {
+    return from(start(), pos, r, theta > 0);
+  }
+
   /**
    * @return a circular segment covering the opposite range of the circle
    */
-  public CircularSegment2 invert() {
-    return CircularSegment2.from(position(1), position(0), r);
+  public Arc2 invert() {
+    return new Arc2(
+      c,
+      end().sub(c).norm(),
+      (theta > 0 ? (PI * 2) - theta : (-PI * 2) - theta),
+      r);
   }
 
   @Override
@@ -68,27 +85,28 @@ public class CircularSegment2 implements Curve2 {
   }
 
   @Override
-  public CircularSegment2[] split(double t) {
+  public Arc2[] split(double t) {
     if (t == 0 || t == 1) {
-      return new CircularSegment2[]{this};
+      return new Arc2[]{this};
     } else if (t < 0 || t > 1) {
       throw new IllegalArgumentException("t must be within [0,1]");
     }
 
-    return new CircularSegment2[]{
-            new CircularSegment2(c, ca, (theta * t), r),
-            new CircularSegment2(c, ca.rotate(theta * t), theta * (1 - t), r)};
+    return new Arc2[]{
+      new Arc2(c, ca, (theta * t), r),
+      new Arc2(c, ca.rotate(theta * t), theta * (1 - t), r)};
   }
 
   @Override
   public Vec2[] subdivide(double error) {
     double thetaIncrement = 2 * acos((-error / r) + 1);
 
-    Vec2[] rs = new Vec2[2 + (int) (-this.theta / thetaIncrement)];
-    for (int i = 0; i < rs.length; i++) {
-      rs[i] = position(i / (double) (rs.length - 1));
+    int samples = 2 + (int) (-this.theta / thetaIncrement);
+    Vec2[] result = new Vec2[samples];
+    for (int i = 0; i < samples; i++) {
+      result[i] = position((double) i / (samples - 1));
     }
-    return rs;
+    return result;
   }
 
   @Override
@@ -113,38 +131,39 @@ public class CircularSegment2 implements Curve2 {
   public Curve2 transform(Matrix3 m) {
     Vec2 cp = c.transform(m);
     Vec2 cap = ca.transform(m);
-    return new CircularSegment2(cp, cap, theta, cap.sub(ca).length());
+    return new Arc2(cp, cap, theta, cap.sub(ca).length());
   }
 
   @Override
-  public CircularSegment2 reverse() {
-    return new CircularSegment2(c, position(1), -theta, r);
+  public Arc2 reverse() {
+    return new Arc2(c, position(1), -theta, r);
   }
 
   @Override
   public double[] inflections() {
 
-    double halfPi = PI / 2;
-    double theta = -this.theta;
+    if (inflections == null) {
+      double halfPi = PI / 2;
+      double theta = -this.theta;
 
-    double angleToAxis = -angleBetween(ca, Vec2.Y_AXIS);
-    double phi = angleToAxis - (int) (angleToAxis / halfPi) * halfPi;
-    if (phi < 0) {
-      phi = halfPi + phi;
+      double angleToAxis = -angleBetween(ca, Vec2.Y_AXIS);
+      double phi = angleToAxis - (int) (angleToAxis / halfPi) * halfPi;
+      if (phi < 0) {
+        phi = halfPi + phi;
+      }
+
+      if (phi > theta) {
+        inflections = new double[0];
+      } else {
+        inflections = new double[1 + (int) ((theta - phi) / halfPi)];
+        for (int i = 0; i < inflections.length; i++) {
+          inflections[i] = phi / theta;
+          phi += halfPi;
+        }
+      }
     }
 
-    if (phi > theta) {
-      return new double[0];
-    }
-
-    double[] ts = new double[1 + (int) ((theta - phi) / halfPi)];
-
-    for (int i = 0; i < ts.length; i++) {
-      ts[i] = phi / theta;
-      phi += halfPi;
-    }
-
-    return ts;
+    return inflections;
   }
 
   @Override
@@ -154,8 +173,8 @@ public class CircularSegment2 implements Curve2 {
 
   @Override
   public boolean equals(Object obj) {
-    if (obj instanceof CircularSegment2) {
-      CircularSegment2 s = (CircularSegment2) obj;
+    if (obj instanceof Arc2) {
+      Arc2 s = (Arc2) obj;
       return c.equals(s.c) && ca.equals(s.ca) && theta == s.theta;
     }
     return false;

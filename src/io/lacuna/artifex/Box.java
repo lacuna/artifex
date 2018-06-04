@@ -3,6 +3,8 @@ package io.lacuna.artifex;
 import java.awt.geom.Rectangle2D;
 import java.util.function.DoublePredicate;
 
+import static io.lacuna.artifex.utils.Scalars.max;
+
 /**
  * @author ztellman
  */
@@ -41,7 +43,7 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
   public double distanceSquared(T point) {
     T l = lower().sub(point);
     T u = point.sub(upper());
-    return u.zip(l, (a, b) -> Math.max(0, Math.max(a, b))).lengthSquared();
+    return u.zip(l, (a, b) -> max(0, a, b)).lengthSquared();
   }
 
   public double distance(T point) {

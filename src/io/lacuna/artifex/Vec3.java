@@ -18,9 +18,9 @@ public class Vec3 implements Vec<Vec3> {
   public static final Vec3 Z_AXIS = new Vec3(0, 0, 1);
 
   public static final Comparator<Vec3> COMPARATOR =
-          Comparator.comparingDouble((Vec3 v) -> v.x)
-                  .thenComparingDouble(v -> v.y)
-                  .thenComparingDouble(v -> v.z);
+    Comparator.comparingDouble((Vec3 v) -> v.x)
+      .thenComparingDouble(v -> v.y)
+      .thenComparingDouble(v -> v.z);
 
 
   public final double x, y, z;
@@ -64,10 +64,14 @@ public class Vec3 implements Vec<Vec3> {
   @Override
   public double nth(int idx) {
     switch (idx) {
-      case 0: return x;
-      case 1: return y;
-      case 2: return z;
-      default: throw new IndexOutOfBoundsException();
+      case 0:
+        return x;
+      case 1:
+        return y;
+      case 2:
+        return z;
+      default:
+        throw new IndexOutOfBoundsException();
     }
   }
 
@@ -78,7 +82,7 @@ public class Vec3 implements Vec<Vec3> {
 
   @Override
   public double[] array() {
-    return new double[] {x, y, z};
+    return new double[]{x, y, z};
   }
 
   public Vec2 vec2() {
@@ -91,9 +95,9 @@ public class Vec3 implements Vec<Vec3> {
 
   public static Vec3 cross(Vec3 a, Vec3 b) {
     return new Vec3(
-            (a.y * b.z) - (a.z * b.y),
-            (a.x * b.x) - (a.x * b.z),
-            (a.x * b.y) - (a.y * b.x));
+      (a.y * b.z) - (a.z * b.y),
+      (a.x * b.x) - (a.x * b.z),
+      (a.x * b.y) - (a.y * b.x));
   }
 
   @Override

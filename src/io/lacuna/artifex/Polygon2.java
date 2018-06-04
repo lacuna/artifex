@@ -1,11 +1,15 @@
 package io.lacuna.artifex;
 
+import io.lacuna.bifurcan.IList;
+
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import static java.lang.Math.abs;
+
 /**
- * Created by zach on 7/8/17.
+ * @author ztellman
  */
 public class Polygon2 {
 
@@ -13,8 +17,8 @@ public class Polygon2 {
     private final double[] coords;
     private byte isConvex;
 
-    public Ring(Collection<Vec2> vertices) {
-      coords = new double[vertices.size() << 1];
+    public Ring(IList<Vec2> vertices) {
+      coords = new double[(int) vertices.size() << 1];
 
       int idx = 0;
       for (Vec2 v : vertices) {
@@ -73,7 +77,7 @@ public class Polygon2 {
      * @return the area encompassed by the ring
      */
     public double area() {
-      return Math.abs(signedArea());
+      return abs(signedArea());
     }
 
     /**
@@ -113,7 +117,7 @@ public class Polygon2 {
       }
 
       for (int i = 0; i < a.coords.length; i++) {
-        if (Math.abs(a.coords[i] - b.coords[i]) > epsilon) {
+        if (abs(a.coords[i] - b.coords[i]) > epsilon) {
           return false;
         }
       }
@@ -124,10 +128,10 @@ public class Polygon2 {
     /**
      * @return an iterator over all the edges
      */
-    public Iterator<LinearSegment2> edges() {
+    public Iterator<LineSegment2> edges() {
       Iterator<Vec2> vertices = vertices();
 
-      return new Iterator<LinearSegment2>() {
+      return new Iterator<LineSegment2>() {
 
         Vec2 v = vertices.next();
 
@@ -137,8 +141,8 @@ public class Polygon2 {
         }
 
         @Override
-        public LinearSegment2 next() {
-          LinearSegment2 edge = LinearSegment2.from(v, vertices.next());
+        public LineSegment2 next() {
+          LineSegment2 edge = LineSegment2.from(v, vertices.next());
           v = edge.end();
           return edge;
         }
@@ -146,10 +150,11 @@ public class Polygon2 {
     }
   }
 
-  private final List<Ring> perimeters, holes;
+  private final Ring perimiter;
+  private final IList<Ring> holes;
 
-  private Polygon2(List<Ring> perimeters, List<Ring> holes) {
-    this.perimeters = perimeters;
+  Polygon2(Ring perimeter, IList<Ring> holes) {
+    this.perimiter = perimeter;
     this.holes = holes;
   }
 }

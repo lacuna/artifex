@@ -6,7 +6,7 @@ import static java.lang.Math.*;
  * @author ztellman
  */
 public class Equations {
-  private static final double EPSILON = 1e-14;
+  private static final double EPSILON = Scalars.EPSILON;
 
   // Adapted from https://github.com/Chlumsky/msdfgen/blob/master/core/equation-solver.cpp
   public static double[] solveLinear(double a, double b) {
@@ -66,9 +66,9 @@ public class Equations {
       q = -2 * sqrt(q);
 
       return new double[]{
-              (q * cos(t / 3)) - a,
-              (q * cos((t + (2 * PI)) / 3)) - a,
-              (q * cos((t - (2 * PI)) / 3)) - a};
+        (q * cos(t / 3)) - a,
+        (q * cos((t + (2 * PI)) / 3)) - a,
+        (q * cos((t - (2 * PI)) / 3)) - a};
     } else {
       double A = -pow(abs(r) + sqrt(r2 - q3), 1 / 3.0);
       if (r < 0) A = -A;
@@ -87,7 +87,7 @@ public class Equations {
     if (Math.abs(a) < EPSILON) {
       return solveQuadratic(b, c, d);
     } else {
-      return solveCubicNormed(b/a, c/a, d/a);
+      return solveCubicNormed(b / a, c / a, d / a);
     }
   }
 }

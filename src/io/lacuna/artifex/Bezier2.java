@@ -2,8 +2,6 @@ package io.lacuna.artifex;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.DoubleFunction;
-import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 
 import static io.lacuna.artifex.Vec.dot;
@@ -14,17 +12,14 @@ import static io.lacuna.artifex.utils.Equations.solveQuadratic;
 import static io.lacuna.artifex.utils.Scalars.inside;
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
-import static java.lang.Math.subtractExact;
 
 /**
  * @author ztellman
  */
 public class Bezier2 {
 
-  private static final Vec2[] VEC2_ARRAY = new Vec2[0];
-
-  public static LinearSegment2 bezier(Vec2 p0, Vec2 p1) {
-    return LinearSegment2.from(p0, p1);
+  public static LineSegment2 bezier(Vec2 p0, Vec2 p1) {
+    return LineSegment2.from(p0, p1);
   }
 
   public static QuadraticBezier2 bezier(Vec2 p0, Vec2 p1, Vec2 p2) {
@@ -53,6 +48,7 @@ public class Bezier2 {
   public static class QuadraticBezier2 implements Curve2 {
 
     public final Vec2 p0, p1, p2;
+    private double[] inflections = null;
 
     QuadraticBezier2(Vec2 p0, Vec2 p1, Vec2 p2) {
       this.p0 = p0;
@@ -76,8 +72,8 @@ public class Bezier2 {
 
       // (1 - t)^2 * p0 + 2t(1 - t) * p1 + t^2 * p2;
       return p0.mul(mt * mt)
-              .add(p1.mul(2 * t * mt))
-              .add(p2.mul(t * t));
+        .add(p1.mul(2 * t * mt))
+        .add(p2.mul(t * t));
     }
 
     @Override
@@ -86,7 +82,13 @@ public class Bezier2 {
 
       // 2(1 - t) * (p1 - p0) + 2t * (p2 - p1)
       return p1.sub(p0).mul(2 * mt)
-              .add(p2.sub(p1).mul(2 * t));
+        .add(p2.sub(p1).mul(2 * t));
+    }
+
+    @Override
+    public QuadraticBezier2 end(Vec2 pos) {
+      Vec2 delta = pos.sub(p2);
+      return new QuadraticBezier2(p0, p1.add(delta), pos);
     }
 
     @Override
@@ -105,10 +107,11 @@ public class Bezier2 {
 
     @Override
     public Vec2[] subdivide(double error) {
-      List<Vec2> points = new ArrayList<>();
+      ArrayList<Vec2> points = new ArrayList<>();
       Bezier2.subdivide(points, this, b -> Vec.lerp(b.p0, b.p2, 0.5).sub(b.p1).lengthSquared(), error * error);
       points.add(end());
-      return points.toArray(VEC2_ARRAY);
+
+      return points.toArray(new Vec2[points.size()]);
     }
 
     @Override
@@ -162,21 +165,26 @@ public class Bezier2 {
 
     @Override
     public double[] inflections() {
-      Vec2 div = p0.sub(p1.mul(2)).add(p2);
-      if (div.x == 0 || div.y == 0) {
-        return new double[0];
-      } else {
-        Vec2 v = p0.sub(p1).div(div);
-        boolean x = inside(v.x, 0, 1);
-        boolean y = inside(v.y, 0, 1);
-        if (x && y) {
-          return new double[]{v.x, v.y};
-        } else if (x ^ y) {
-          return new double[]{x ? v.x : v.y};
+
+      if (inflections == null) {
+        Vec2 div = p0.sub(p1.mul(2)).add(p2);
+        if (div.x == 0 || div.y == 0) {
+          inflections = new double[0];
         } else {
-          return new double[0];
+          Vec2 v = p0.sub(p1).div(div);
+          boolean x = inside(v.x, 0, 1);
+          boolean y = inside(v.y, 0, 1);
+          if (x && y) {
+            inflections = new double[]{v.x, v.y};
+          } else if (x ^ y) {
+            inflections = new double[]{x ? v.x : v.y};
+          } else {
+            inflections = new double[0];
+          }
         }
       }
+
+      return inflections;
     }
 
     @Override
@@ -206,6 +214,7 @@ public class Bezier2 {
     private static final int SEARCH_STEPS = 8;
 
     private final Vec2 p0, p1, p2, p3;
+    private double[] inflections;
 
     CubicBezier2(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
       this.p0 = p0;
@@ -222,9 +231,9 @@ public class Bezier2 {
 
       // (1 - t)^3 * p0 + 3t(1 - t)^2 * p1 + 3(1 - t)t^2 * p2 + t^3 * p3;
       return p0.mul(mt2 * mt)
-              .add(p1.mul(3 * mt2 * t))
-              .add(p2.mul(3 * mt * t2))
-              .add(p3.mul(t2 * t));
+        .add(p1.mul(3 * mt2 * t))
+        .add(p2.mul(3 * mt * t2))
+        .add(p3.mul(t2 * t));
     }
 
     @Override
@@ -233,8 +242,14 @@ public class Bezier2 {
 
       // 3(1 - t)^2 * (p1 - p0) + 6(1 - t)t * (p2 - p1) + 3t^2 * (p3 - p2)
       return p1.sub(p0).mul(3 * mt * mt)
-              .add(p2.sub(p1).mul(6 * mt * t))
-              .add(p3.sub(p2).mul(3 * t * t));
+        .add(p2.sub(p1).mul(6 * mt * t))
+        .add(p3.sub(p2).mul(3 * t * t));
+    }
+
+    @Override
+    public CubicBezier2 end(Vec2 pos) {
+      Vec2 delta = pos.sub(p3);
+      return new CubicBezier2(p0, p1, p2.add(delta), pos);
     }
 
     @Override
@@ -268,12 +283,13 @@ public class Bezier2 {
     public Vec2[] subdivide(double error) {
       List<Vec2> points = new ArrayList<>();
       Bezier2.subdivide(points, this,
-              b -> Math.max(
-                      Vec.lerp(b.p0, b.p3, 1.0/3).sub(b.p1).lengthSquared(),
-                      Vec.lerp(b.p0, b.p3, 2.0/3).sub(b.p2).lengthSquared()),
-              error * error);
+        b -> Math.max(
+          Vec.lerp(b.p0, b.p3, 1.0 / 3).sub(b.p1).lengthSquared(),
+          Vec.lerp(b.p0, b.p3, 2.0 / 3).sub(b.p2).lengthSquared()),
+        error * error);
       points.add(end());
-      return points.toArray(VEC2_ARRAY);
+
+      return points.toArray(new Vec2[points.size()]);
     }
 
     @Override
@@ -337,23 +353,28 @@ public class Bezier2 {
 
     @Override
     public double[] inflections() {
-      Vec2 a0 = p1.sub(p0);
-      Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
-      Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
 
-      double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
-      double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
+      if (inflections == null) {
+        Vec2 a0 = p1.sub(p0);
+        Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
+        Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
 
-      int solutions = 0;
-      for (double n : s1) if (inside(n, 0, 1)) solutions++;
-      for (double n : s2) if (inside(n, 0, 1)) solutions++;
+        double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
+        double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
 
-      double[] s = new double[solutions];
-      int idx = 0;
-      for (double n : s1) if (inside(n, 0, 1)) s[idx++] = n;
-      for (double n : s2) if (inside(n, 0, 1)) s[idx++] = n;
+        int solutions = 0;
+        for (double n : s1) if (inside(n, 0, 1)) solutions++;
+        for (double n : s2) if (inside(n, 0, 1)) solutions++;
 
-      return s;
+        inflections = new double[solutions];
+        if (solutions > 0) {
+          int idx = 0;
+          for (double n : s1) if (inside(n, 0, 1)) inflections[idx++] = n;
+          for (double n : s2) if (inside(n, 0, 1)) inflections[idx++] = n;
+        }
+      }
+
+      return inflections;
     }
 
     @Override

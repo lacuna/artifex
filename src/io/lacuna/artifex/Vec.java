@@ -44,27 +44,43 @@ public interface Vec<T extends Vec<T>> extends Comparable<T> {
 
   static Vec from(double[] ary) {
     switch (ary.length) {
-      case 2: return new Vec2(ary[0], ary[1]);
-      case 3: return new Vec3(ary[0], ary[1], ary[2]);
-      case 4: return new Vec4(ary[0], ary[1], ary[2], ary[3]);
-      default: throw new IllegalArgumentException("ary must have a length in [1,4]");
+      case 2:
+        return new Vec2(ary[0], ary[1]);
+      case 3:
+        return new Vec3(ary[0], ary[1], ary[2]);
+      case 4:
+        return new Vec4(ary[0], ary[1], ary[2], ary[3]);
+      default:
+        throw new IllegalArgumentException("ary must have a length in [1,4]");
     }
   }
 
   static <T extends Vec<T>> double dot(T a, T b) {
-    return a.zip(b, MUL).reduce(ADD);
+    return a.mul(b).reduce(ADD);
+  }
+
+  static double dot(Vec2 a, Vec2 b) {
+    return (a.x * b.x) + (a.y * b.y);
   }
 
   static <T extends Vec<T>> T lerp(T a, T b, double t) {
     return a.add(b.sub(a).mul(t));
   }
 
+  static Vec2 lerp(Vec2 a, Vec2 b, double t) {
+    return new Vec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+  }
+
   static <T extends Vec<T>> T lerp(T a, T b, T t) {
     return a.add(b.sub(a).mul(t));
   }
 
-  static <T extends Vec<T>> boolean equals(T a, T b, double epsilon) {
-    return a.zip(b, DELTA).every(i -> i <= epsilon);
+  static Vec2 lerp(Vec2 a, Vec2 b, Vec2 t) {
+    return new Vec2(a.x + (b.x - a.x) * t.x, a.y + (b.y - a.y) * t.y);
+  }
+
+  static <T extends Vec<T>> boolean equals(T a, T b, double tolerance) {
+    return a.zip(b, DELTA).every(i -> i <= tolerance);
   }
 
   T map(DoubleUnaryOperator f);
@@ -102,7 +118,7 @@ public interface Vec<T extends Vec<T>> extends Comparable<T> {
   }
 
   default T sub(final double n) {
-    return map(i -> i - 1);
+    return map(i -> i - n);
   }
 
   default T mul(T v) {
