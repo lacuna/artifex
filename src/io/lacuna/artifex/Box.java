@@ -77,7 +77,7 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
     if (isEmpty() || b.isEmpty()) {
       return false;
     }
-    return b.upper().sub(lower()).every(POSITIVE) && upper().sub(b.lower()).every(POSITIVE);
+    return b.upper().sub(lower()).every(NOT_NEGATIVE) && upper().sub(b.lower()).every(NOT_NEGATIVE);
   }
 
   public boolean contains(T v) {

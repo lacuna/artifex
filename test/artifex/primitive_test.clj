@@ -2,13 +2,14 @@
   (:require
    [criterium.core :as c]
    [clojure.string :as str]
-   [clojure.test :refer :all])
+   [clojure.test :refer :all]
+   [clojure.pprint :refer :all])
   (:import
    [io.lacuna.artifex.utils
     Intersections
-    PlaneSweep
-    MonotoneRegion
-    Scalars]
+    Triangulation
+    Scalars
+    EdgeList]
    [java.util.function
     ToDoubleFunction
     Function
@@ -18,7 +19,7 @@
     Box2
     Polygon2$Ring
     LineSegment2
-    Arc2
+    CircularArc2
     Curve2
     Bezier2
     Region2
@@ -72,7 +73,7 @@
 
 (defn arc
   [a b r]
-  (Arc2/from a b r true))
+  (CircularArc2/from a b r true))
 
 (defn line-segment [a b]
   (LineSegment2/from a b))
@@ -103,7 +104,11 @@
 (deftest test-angle-between
   (let [half-pi (/ Math/PI 2)]
     (is (= (- half-pi) (Vec2/angleBetween (v -1 0) (v 0 1))))
-    (is (= (* -3 half-pi) (Vec2/angleBetween (v 0 1) (v -1 0))))))
+    (is (= (* -3 half-pi) (Vec2/angleBetween (v 0 1) (v -1 0)))))
+
+  (dotimes [_ 1e2]
+    (let [[a b] (map #(.norm %) (repeatedly 2 #(random-vector -1 1)))]
+      (Vec/equals b (.rotate a (Vec2/angleBetween a b)) Scalars/EPSILON))))
 
 (deftest test-vector-arithmetic
   (are [expected op a b]
@@ -126,27 +131,20 @@
 
     ))
 
-;; MonotoneRegion
+;; Triangulation
 
-(deftest test-vertex-type
-  (are [type a b c]
-      (= type
-        (-> (MonotoneRegion/vertexType a b c)
-          str
-          str/lower-case
-          keyword))
+(defn region-vertices [vs]
+  (Region2. (Region2/ring vs) []))
 
-    :merge   (v -1 0) (v 0 1) (v 1 0)
-    :start   (v -1 1) (v 0 0) (v 1 1)
-    :end     (v 1 0)  (v 0 1) (v -1 0)
-    :split   (v 1 1)  (v 0 0) (v -1 1)
-    :regular (v 0 0)  (v 0 1) (v 0 2)
-    :regular (v 0 2)  (v 0 1) (v 0 0)
-    ))
+(defn faces [edge-list]
+  (->> edge-list
+    .faces
+    (map #(.ring edge-list %))
+    (mapv (partial mapv #(unvertex (.start %))))))
 
-;; PlaneSweep
+;; Intersections
 
-(deftest test-plane-sweep
+#_(deftest test-plane-sweep
   (dotimes [_ 1e2]
     (let [[a b]
           (repeatedly 2
@@ -164,7 +162,7 @@
       (is
         (= intersections
           (->>
-            (PlaneSweep/intersections a b (function identity))
+            (Intersections/intersections a b (function identity))
             (map #(set [(.a %) (.b %)]))
             set))))))
 

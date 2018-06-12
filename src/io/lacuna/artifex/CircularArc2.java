@@ -2,9 +2,6 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec2.angleBetween;
 import static java.lang.Math.PI;
@@ -13,11 +10,13 @@ import static java.lang.Math.acos;
 /**
  * @author ztellman
  */
-public class Arc2 implements Curve2 {
+public class CircularArc2 implements Curve2 {
 
   public final Vec2 c, ca;
   public final double theta, r;
+
   private double[] inflections;
+  private int hash = -1;
 
   /**
    * @param a a point on the circle
@@ -25,7 +24,7 @@ public class Arc2 implements Curve2 {
    * @param r the radius of the circle
    * @return a clockwise circular arc between {@code a} and {@code b}
    */
-  public static Arc2 from(Vec2 a, Vec2 b, double r, boolean clockwise) {
+  public static CircularArc2 from(Vec2 a, Vec2 b, double r, boolean clockwise) {
 
     if (r <= 0) {
       throw new IllegalArgumentException("radius must be greater than 0");
@@ -44,14 +43,14 @@ public class Arc2 implements Curve2 {
     Vec2 cb = b.sub(c).norm();
     double theta = angleBetween(ca, cb);
 
-    return new Arc2(
+    return new CircularArc2(
       c,
       clockwise ? ca : cb,
       (theta > 0 ? theta - (PI * 2) : theta) * (clockwise ? 1 : -1),
       r);
   }
 
-  private Arc2(Vec2 c, Vec2 ca, double theta, double r) {
+  private CircularArc2(Vec2 c, Vec2 ca, double theta, double r) {
     this.c = c;
     this.ca = ca;
     this.theta = theta;
@@ -59,19 +58,28 @@ public class Arc2 implements Curve2 {
   }
 
   @Override
-  public Arc2 end(Vec2 pos) {
-    return from(start(), pos, r, theta > 0);
+  public CircularArc2 end(Vec2 pos) {
+    Vec2 p0 = start();
+    Vec2 p1 = end();
+    double width = p1.sub(p0).length();
+    double newWidth = pos.sub(p0).length();
+    return from(p0, pos, r * (newWidth / width), theta < 0);
   }
 
   /**
    * @return a circular segment covering the opposite range of the circle
    */
-  public Arc2 invert() {
-    return new Arc2(
+  public CircularArc2 invert() {
+    return new CircularArc2(
       c,
       end().sub(c).norm(),
       (theta > 0 ? (PI * 2) - theta : (-PI * 2) - theta),
       r);
+  }
+
+  @Override
+  public Vec2 start() {
+    return c.add(ca.mul(r));
   }
 
   @Override
@@ -85,16 +93,16 @@ public class Arc2 implements Curve2 {
   }
 
   @Override
-  public Arc2[] split(double t) {
+  public CircularArc2[] split(double t) {
     if (t == 0 || t == 1) {
-      return new Arc2[]{this};
+      return new CircularArc2[]{this};
     } else if (t < 0 || t > 1) {
       throw new IllegalArgumentException("t must be within [0,1]");
     }
 
-    return new Arc2[]{
-      new Arc2(c, ca, (theta * t), r),
-      new Arc2(c, ca.rotate(theta * t), theta * (1 - t), r)};
+    return new CircularArc2[]{
+      new CircularArc2(c, ca, (theta * t), r),
+      new CircularArc2(c, ca.rotate(theta * t), theta * (1 - t), r)};
   }
 
   @Override
@@ -131,12 +139,12 @@ public class Arc2 implements Curve2 {
   public Curve2 transform(Matrix3 m) {
     Vec2 cp = c.transform(m);
     Vec2 cap = ca.transform(m);
-    return new Arc2(cp, cap, theta, cap.sub(ca).length());
+    return new CircularArc2(cp, cap, theta, cap.sub(ca).length());
   }
 
   @Override
-  public Arc2 reverse() {
-    return new Arc2(c, position(1), -theta, r);
+  public CircularArc2 reverse() {
+    return new CircularArc2(c, position(1), -theta, r);
   }
 
   @Override
@@ -168,16 +176,22 @@ public class Arc2 implements Curve2 {
 
   @Override
   public int hashCode() {
-    return Hashes.hash(theta, r) ^ c.hashCode() ^ ca.hashCode();
+    if (hash == -1) {
+      hash = Hashes.hash(theta, r) ^ c.hashCode() ^ ca.hashCode();
+    }
+    return hash;
   }
 
   @Override
   public boolean equals(Object obj) {
-    if (obj instanceof Arc2) {
-      Arc2 s = (Arc2) obj;
+    if (obj == this) {
+      return true;
+    } else if (obj instanceof CircularArc2) {
+      CircularArc2 s = (CircularArc2) obj;
       return c.equals(s.c) && ca.equals(s.ca) && theta == s.theta;
+    } else {
+      return false;
     }
-    return false;
   }
 
   @Override

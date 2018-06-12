@@ -1,6 +1,5 @@
 package io.lacuna.artifex.utils;
 
-import io.lacuna.artifex.CollinearException;
 import io.lacuna.artifex.Curve2;
 import io.lacuna.artifex.Region2;
 import io.lacuna.bifurcan.*;
@@ -65,28 +64,24 @@ public class RegionClipping {
       bNodes.put(i, new Node(b.curves[i]));
     }
 
-    IList<PlaneSweep.Intersection<IEntry<Double, Node>>> intersections =
-      PlaneSweep.intersections(
+    IList<BatchIntersection.Intersection<IEntry<Double, Node>>> intersections =
+      BatchIntersection.intersections(
         aNodes.entries(),
         bNodes.entries(),
         e -> e.value().curve);
 
-    for (PlaneSweep.Intersection<IEntry<Double, Node>> i : intersections) {
-      try {
-        Curve2 ca = i.a.value().curve;
-        Curve2 cb = i.b.value().curve;
-        double[] ts = ca.intersections(cb);
-        double ka = i.a.key() + ts[0];
-        double kb = i.b.key() + ts[1];
+    for (BatchIntersection.Intersection<IEntry<Double, Node>> i : intersections) {
+      Curve2 ca = i.a.value().curve;
+      Curve2 cb = i.b.value().curve;
+      double[] ts = ca.intersections(cb);
+      double ka = i.a.key() + ts[0];
+      double kb = i.b.key() + ts[1];
 
-        aNodes.put(ka, new Node(ca, kb));
-        bNodes.put(kb, new Node(cb, ka));
-      } catch (CollinearException e) {
-        // TODO
-      }
+      aNodes.put(ka, new Node(ca, kb));
+      bNodes.put(kb, new Node(cb, ka));
     }
 
-    return new FloatMap[] {aNodes.forked(), bNodes.forked()};
+    return new FloatMap[]{aNodes.forked(), bNodes.forked()};
   }
 
 

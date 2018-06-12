@@ -1,6 +1,5 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.utils.Scalars;
 import io.lacuna.bifurcan.IList;
 import io.lacuna.bifurcan.LinearList;
 import io.lacuna.bifurcan.Lists;
@@ -8,13 +7,9 @@ import io.lacuna.bifurcan.Lists;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
-import static java.lang.Math.max;
-import static java.lang.Math.min;
 
 /**
  * @author ztellman
@@ -24,6 +19,12 @@ public class Path2 {
   private final Curve2[] curves;
   private final Box2 bounds;
   private final boolean isRing;
+
+  Path2(Region2.Ring ring) {
+    this.curves = ring.curves;
+    this.bounds = ring.bounds;
+    this.isRing = true;
+  }
 
   public static Path2 of(Curve2... curves) {
     return new Path2(Arrays.asList(curves));
@@ -43,18 +44,22 @@ public class Path2 {
 
   public Path2(Iterable<Curve2> cs) {
 
-    IList<Curve2> curves = new LinearList<>();
+    IList<Curve2> l = new LinearList<>();
     Box2 bounds = Box2.EMPTY;
     for (Curve2 a : cs) {
       for (Curve2 b : a.split(a.inflections())) {
-        curves.addLast(b);
+        l.addLast(b);
         bounds = bounds.union(b.start()).union(b.end());
       }
     }
 
     this.bounds = bounds;
-    this.isRing = Vec.equals(curves.first().start(), curves.last().end(), EPSILON);
-    this.curves = curves.toArray(Curve2.class);
+    this.isRing = Vec.equals(l.first().start(), l.last().end(), EPSILON);
+    this.curves = l.toArray(Curve2[]::new);
+
+    if (isRing) {
+      curves[curves.length - 1] = curves[curves.length - 1].end(curves[0].start());
+    }
   }
 
   public Path2 reverse() {
@@ -69,18 +74,12 @@ public class Path2 {
     return isRing;
   }
 
-  public boolean inside(Vec2 p) {
-    if (!isRing) {
-      throw new IllegalStateException("path is not a ring");
-    }
-
-    LineSegment2 ray = LineSegment2.from(p, vec(bounds.ux + 1, p.y));
-
-    return Arrays.stream(curves).filter(c -> c.intersects(ray)).count() % 2 == 1;
-  }
-
   public Box2 bounds() {
     return bounds;
+  }
+
+  public Region2 extrude(double width) {
+    return null;
   }
 
   public Iterable<Vec2> vertices(double error) {

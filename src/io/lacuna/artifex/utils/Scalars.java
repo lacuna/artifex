@@ -15,14 +15,14 @@ public class Scalars {
     return a + ((b - a) * t);
   }
 
-  public static boolean inside(double n, double min, double max) {
+  public static boolean inside(double min, double n, double max) {
     return min < n && n < max;
   }
 
-  public static double clamp(double min, double max, double n) {
-    if (n < min) {
+  public static double clamp(double min, double n, double max) {
+    if (n <= min) {
       return min;
-    } else if (n > max) {
+    } else if (n >= max) {
       return max;
     } else {
       return n;

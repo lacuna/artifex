@@ -188,7 +188,7 @@ public class DistanceField {
     public SignedDistance(Curve2 curve, Vec2 origin) {
 
       double param = curve.nearestPoint(origin);
-      double clampedParam = clamp(0, 1, param);
+      double clampedParam = clamp(0, param, 1);
       Vec2 pos = curve.position(clampedParam);
       Vec2 dir = curve.direction(clampedParam).norm();
       Vec2 po = origin.sub(pos);

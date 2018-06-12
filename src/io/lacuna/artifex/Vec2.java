@@ -1,6 +1,7 @@
 package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
+import io.lacuna.artifex.utils.Scalars;
 
 import java.util.Comparator;
 import java.util.function.DoubleBinaryOperator;
@@ -8,6 +9,8 @@ import java.util.function.DoublePredicate;
 import java.util.function.DoubleUnaryOperator;
 
 import static io.lacuna.artifex.Vec.dot;
+import static java.lang.Math.acos;
+import static java.lang.Math.atan2;
 
 /**
  * @author ztellman
@@ -124,15 +127,23 @@ public class Vec2 implements Vec<Vec2> {
   public static double angleBetween(Vec2 a, Vec2 b) {
     Vec2 na = a.norm();
     Vec2 nb = b.norm();
-    double theta = Math.acos(dot(na, nb));
+
+    double theta = acos(Scalars.clamp(-1.0, dot(na, nb), 1.0));
     if (cross(na, nb) > 0) {
       theta = (Math.PI * 2) - theta;
     }
     return -theta;
   }
 
+  /**
+   * @return whether {@code b} sits between the vectors {@code a} and {@code b}
+   */
+  public static boolean between(Vec2 a, Vec2 b, Vec2 c) {
+    return (cross(a, b) * cross(c, b)) < 0;
+  }
+
   public Polar2 polar2() {
-    return new Polar2(Math.atan2(y, x), length());
+    return new Polar2(atan2(y, x), length());
   }
 
   @Override

@@ -14,7 +14,7 @@ import java.util.function.ToDoubleFunction;
 /**
  * @author ztellman
  */
-public class PlaneSweep {
+public class BatchIntersection {
 
   private enum EventType {
     OPEN,

@@ -1,6 +1,9 @@
 package io.lacuna.artifex.utils;
 
-import io.lacuna.artifex.*;
+import io.lacuna.artifex.Curve2;
+import io.lacuna.artifex.Vec;
+import io.lacuna.artifex.Vec2;
+import io.lacuna.bifurcan.LinearList;
 
 import static io.lacuna.artifex.Box.box;
 
@@ -11,13 +14,14 @@ public class Intersections {
 
   private static class CurveInterval {
     public final Curve2 c;
-    public final double tLo, tHi;
+    public final double tLo, tHi, tEpsilon;
     public final Vec2 pLo, pHi;
 
-    public CurveInterval(Curve2 c, double tLo, double tHi, Vec2 pLo, Vec2 pHi) {
+    public CurveInterval(Curve2 c, double tLo, double tHi, double tEpsilon, Vec2 pLo, Vec2 pHi) {
       this.c = c;
       this.tLo = tLo;
       this.tHi = tHi;
+      this.tEpsilon = tEpsilon;
       this.pLo = pLo;
       this.pHi = pHi;
     }
@@ -26,6 +30,7 @@ public class Intersections {
       this.c = c;
       this.tLo = 0;
       this.tHi = 1;
+      this.tEpsilon = 1;
       this.pLo = c.start();
       this.pHi = c.end();
     }
@@ -35,28 +40,46 @@ public class Intersections {
       if (ts.length == 0) {
         return new CurveInterval[]{new CurveInterval(c)};
       } else {
-        CurveInterval[] is = new CurveInterval[ts.length + 1];
+        double tEpsilon = 1;
+        for (int i = 0; i < ts.length - 1; i++) {
+          tEpsilon = Math.min(tEpsilon, ts[i + 1] - ts[i]);
+        }
 
+        CurveInterval[] is = new CurveInterval[ts.length + 1];
         for (int i = 0; i < is.length; i++) {
           double lo = i == 0 ? 0 : ts[i - 1];
           double hi = i == is.length - 1 ? 1 : ts[i];
           Vec2 pLo = lo == 0 ? c.start() : is[i - 1].pHi;
           Vec2 pHi = hi == 1 ? c.end() : c.position(hi);
-          is[i] = new CurveInterval(c, lo, hi, pLo, pHi);
+          is[i] = new CurveInterval(c, lo, hi, tEpsilon, pLo, pHi);
         }
 
         return is;
       }
     }
 
+    public double mid(double epsilon) {
+      if (tLo < epsilon) {
+        return 0;
+      }
+      if (tHi + epsilon > 1) {
+        return 1;
+      }
+
+      return (tLo + tHi) / 2;
+    }
+
     public boolean intersects(CurveInterval c) {
+      // TODO avoid allocation here
       return box(pLo, pHi).intersects(box(c.pLo, c.pHi));
     }
 
     public CurveInterval[] split() {
       double tMid = (tLo + tHi) / 2;
       Vec2 pMid = c.position(tMid);
-      return new CurveInterval[]{new CurveInterval(c, tLo, tMid, pLo, pMid), new CurveInterval(c, tMid, tHi, pMid, pHi)};
+      return new CurveInterval[]{
+        new CurveInterval(c, tLo, tMid, tEpsilon, pLo, pMid),
+        new CurveInterval(c, tMid, tHi, tEpsilon, pMid, pHi)};
     }
 
     public Vec2 dir(double t) {
@@ -64,65 +87,105 @@ public class Intersections {
     }
   }
 
-  private static int addIntersection(CurveInterval a, CurveInterval b, DoubleAccumulator acc, double epsilon) throws CollinearException {
-    double aMid = (a.tLo + a.tHi) / 2;
-    double bMid = (b.tLo + b.tHi) / 2;
-    boolean aEndpoint = a.tLo < epsilon || (a.tHi + epsilon) > 1;
-    boolean bEndpoint = b.tLo < epsilon || (b.tHi + epsilon) > 1;
-
-    // touching endpoints aren't an intersection
-    if (aEndpoint && bEndpoint) {
-      return 0;
+  private static double preferred(double a, double b) {
+    if (a < 0.5) {
+      return Math.min(a, b);
+    } else {
+      return Math.max(a, b);
     }
+  }
 
-    // is this a duplicate match
-    if (acc.size() > 0 && Scalars.equals(aMid, acc.get(acc.size() - 2), epsilon)) {
-      return 0;
-    }
+  public static double[] collinearIntersection(Curve2 a, Curve2 b) {
+    double[] result = new double[4];
 
-    // if the curves share a tangent at the first point of intersection, that's a problem
-    if (acc.size() == 0) {
-      Vec2 aDir = a.dir(aMid);
-      Vec2 bDir = b.dir(bMid);
-      Vec2 nbDir = bDir.negate();
-      if (Vec.equals(aDir, bDir, epsilon) || Vec.equals(aDir, nbDir, epsilon)) {
-        throw new CollinearException(a.c, b.c);
+    for (int i = 0; i < 2; i++) {
+      int offset = i << 1;
+      double tb = b.nearestPoint(a.position(i));
+
+      // a overhangs the start of b
+      if (tb <= 0) {
+        result[offset] = a.nearestPoint(b.start());
+        result[offset + 1] = 0;
+
+        // a overhangs the end of b
+      } else if (tb >= 1) {
+        result[offset] = a.nearestPoint(b.end());
+        result[offset + 1] = 1;
+
+        // a is contained in b
+      } else {
+        return new double[]{i, tb};
       }
     }
 
-    acc.add(aMid);
-    acc.add(bMid);
-    return 2;
+    return result;
   }
 
-  private static void intersections(CurveInterval a, CurveInterval b, DoubleAccumulator acc, double epsilon) throws CollinearException {
+  private static boolean addIntersection(CurveInterval a, CurveInterval b, DoubleAccumulator acc, double epsilon) {
+    double aMid = a.mid(epsilon);
+    double bMid = b.mid(epsilon);
 
-    if (a.tHi - a.tLo <= epsilon) {
-      addIntersection(a, b, acc, epsilon);
-      return;
+    // is this a duplicate match
+    int len = acc.size();
+    if (len > 0
+      && Scalars.equals(aMid, acc.get(len - 2), a.tEpsilon)
+      && Scalars.equals(bMid, acc.get(len - 1), b.tEpsilon)) {
+
+      acc.set(len - 2, preferred(acc.get(len - 2), aMid));
+      acc.set(len - 1, preferred(acc.get(len - 1), bMid));
+      return false;
     }
 
-    CurveInterval[] as = a.split();
-    CurveInterval[] bs = b.split();
+    // if the curves share a tangent at the first point of intersection, they're collinear
+    if (acc.size() == 0) {
+      Vec2 aDir = a.dir(aMid).norm();
+      Vec2 bDir = b.dir(bMid).norm();
 
-    if (as[0].intersects(bs[0])) {
-      intersections(as[0], bs[0], acc, epsilon);
+      if (Vec.equals(aDir, bDir, epsilon) || Vec.equals(aDir, bDir.negate(), epsilon)) {
+        double[] ts = collinearIntersection(a.c, b.c);
+        acc.add(ts[0], ts[1]);
+        acc.add(ts[2], ts[3]);
+
+        return true;
+      }
     }
 
-    if (as[0].intersects(bs[1])) {
-      intersections(as[0], bs[1], acc, epsilon);
-    }
+    acc.add(aMid, bMid);
 
-    if (as[1].intersects(bs[0])) {
-      intersections(as[1], bs[0], acc, epsilon);
-    }
-
-    if (as[1].intersects(bs[1])) {
-      intersections(as[1], bs[1], acc, epsilon);
-    }
+    return false;
   }
 
-  public static double[] intersections(Curve2 a, Curve2 b, double epsilon) throws CollinearException {
+  private static boolean intersections(CurveInterval a, CurveInterval b, DoubleAccumulator acc, double epsilon) {
+
+    LinearList<CurveInterval> stack = new LinearList<>();
+    stack.addLast(a).addLast(b);
+
+    while (stack.size() > 0) {
+      b = stack.popLast();
+      a = stack.popLast();
+
+      if (a.tHi - a.tLo <= epsilon) {
+        if (addIntersection(a, b, acc, epsilon)) {
+          return true;
+        }
+      } else {
+        CurveInterval[] as = a.split();
+        CurveInterval[] bs = b.split();
+
+        for (int i = 0; i < as.length; i++) {
+          for (int j = 0; j < bs.length; j++) {
+            if (as[i].intersects(bs[j])) {
+              stack.addLast(as[i]).addLast(bs[j]);
+            }
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  public static double[] intersections(Curve2 a, Curve2 b, double epsilon) {
 
     if (!a.bounds().intersects(b.bounds())) {
       return new double[0];
@@ -137,7 +200,9 @@ public class Intersections {
         CurveInterval ai = as[i];
         CurveInterval bi = bs[j];
         if (ai.intersects(bi)) {
-          intersections(ai, bi, accumulator, epsilon);
+          if (intersections(ai, bi, accumulator, epsilon)) {
+            return accumulator.toArray();
+          }
         }
       }
     }

@@ -2,6 +2,7 @@ package io.lacuna.artifex;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToDoubleFunction;
 
 import static io.lacuna.artifex.Vec.dot;
@@ -48,7 +49,9 @@ public class Bezier2 {
   public static class QuadraticBezier2 implements Curve2 {
 
     public final Vec2 p0, p1, p2;
+
     private double[] inflections = null;
+    private int hash = -1;
 
     QuadraticBezier2(Vec2 p0, Vec2 p1, Vec2 p2) {
       this.p0 = p0;
@@ -87,8 +90,15 @@ public class Bezier2 {
 
     @Override
     public QuadraticBezier2 end(Vec2 pos) {
-      Vec2 delta = pos.sub(p2);
-      return new QuadraticBezier2(p0, p1.add(delta), pos);
+      Vec2 ad = p1.sub(p0);
+      Vec2 bd = p1.sub(p2);
+
+      double dx = pos.x - p0.x;
+      double dy = pos.y - p0.y;
+      double det = bd.x * ad.y - bd.y * ad.x;
+      double u = (dy * bd.x - dx * bd.y) / det;
+
+      return new QuadraticBezier2(p0, p0.add(ad.mul(u)), pos);
     }
 
     @Override
@@ -172,8 +182,8 @@ public class Bezier2 {
           inflections = new double[0];
         } else {
           Vec2 v = p0.sub(p1).div(div);
-          boolean x = inside(v.x, 0, 1);
-          boolean y = inside(v.y, 0, 1);
+          boolean x = inside(0, v.x, 1);
+          boolean y = inside(0, v.y, 1);
           if (x && y) {
             inflections = new double[]{v.x, v.y};
           } else if (x ^ y) {
@@ -189,16 +199,22 @@ public class Bezier2 {
 
     @Override
     public int hashCode() {
-      return ((p0.hashCode() * 31) + p1.hashCode()) * 31 + p2.hashCode();
+      if (hash == -1) {
+        hash = Objects.hash(p0, p1, p2);
+      }
+      return hash;
     }
 
     @Override
     public boolean equals(Object obj) {
-      if (obj instanceof QuadraticBezier2) {
+      if (obj == this) {
+        return true;
+      } else if (obj instanceof QuadraticBezier2) {
         QuadraticBezier2 b = (QuadraticBezier2) obj;
         return p0.equals(b.p0) && p1.equals(b.p1) && p2.equals(b.p2);
+      } else {
+        return false;
       }
-      return false;
     }
 
     @Override
@@ -214,7 +230,9 @@ public class Bezier2 {
     private static final int SEARCH_STEPS = 8;
 
     private final Vec2 p0, p1, p2, p3;
+
     private double[] inflections;
+    private int hash = -1;
 
     CubicBezier2(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
       this.p0 = p0;
@@ -363,14 +381,14 @@ public class Bezier2 {
         double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
 
         int solutions = 0;
-        for (double n : s1) if (inside(n, 0, 1)) solutions++;
-        for (double n : s2) if (inside(n, 0, 1)) solutions++;
+        for (double n : s1) if (inside(0, n, 1)) solutions++;
+        for (double n : s2) if (inside(0, n, 1)) solutions++;
 
         inflections = new double[solutions];
         if (solutions > 0) {
           int idx = 0;
-          for (double n : s1) if (inside(n, 0, 1)) inflections[idx++] = n;
-          for (double n : s2) if (inside(n, 0, 1)) inflections[idx++] = n;
+          for (double n : s1) if (inside(0, n, 1)) inflections[idx++] = n;
+          for (double n : s2) if (inside(0, n, 1)) inflections[idx++] = n;
         }
       }
 
@@ -379,16 +397,22 @@ public class Bezier2 {
 
     @Override
     public int hashCode() {
-      return (((p0.hashCode() * 31) + p1.hashCode()) * 31 + p2.hashCode()) * 31 + p3.hashCode();
+      if (hash == -1) {
+        hash = Objects.hash(p0, p1, p2, p3);
+      }
+      return hash;
     }
 
     @Override
     public boolean equals(Object obj) {
-      if (obj instanceof CubicBezier2) {
+      if (obj == this) {
+        return true;
+      } else if (obj instanceof CubicBezier2) {
         CubicBezier2 b = (CubicBezier2) obj;
         return p0.equals(b.p0) && p1.equals(b.p1) && p2.equals(b.p2) && p3.equals(b.p3);
+      } else {
+        return false;
       }
-      return false;
     }
 
     @Override

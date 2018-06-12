@@ -35,7 +35,7 @@ public interface Curve2 {
   }
 
   /**
-   * @return an updated curve with the endpoint at {@code pos}
+   * @return an updated curve with the end point at {@code pos}
    */
   Curve2 end(Vec2 pos);
 
@@ -92,27 +92,21 @@ public interface Curve2 {
   double[] inflections();
 
   default boolean collinear(Curve2 c) {
-    try {
-      intersections(c);
-      return false;
-    } catch (CollinearException e) {
-      return true;
-    }
+    double[] ts = intersections(c);
+    Vec2 u = direction(ts[0]).norm();
+    Vec2 v = c.direction(ts[1]).norm();
+    return Vec.equals(u, v, EPSILON) || Vec.equals(u, v.negate(), EPSILON);
   }
 
   default boolean intersects(Curve2 c) {
-    try {
-      return intersections(c).length > 0;
-    } catch (CollinearException e) {
-      return true;
-    }
+    return intersections(c).length > 0;
   }
 
-  default double[] intersections(Curve2 c, double epsilon) throws CollinearException {
+  default double[] intersections(Curve2 c, double epsilon) {
     return Intersections.intersections(this, c, epsilon);
   }
 
-  default double[] intersections(Curve2 c) throws CollinearException {
+  default double[] intersections(Curve2 c) {
     return intersections(c, EPSILON);
   }
 }

@@ -7,8 +7,13 @@
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [criterium "0.4.3"]
                                   [virgil "0.1.8"]]}}
-  :jvm-opts ^:replace ["-server" "-Xmx1g"
-                       #_"-XX:+UnlockDiagnosticVMOptions" #_"-XX:+PrintAssembly" #_"-XX:CompileCommand=print,io.lacuna.artifex.Vec::equals" #_"-XX:CompileCommand=dontinline,io.lacuna.artifex.Vec::equals"]
+  :jvm-opts ^:replace ["-server"
+                       "-Xmx1g"
+                       "-ea:io.lacuna..."
+                       #_"-XX:+UnlockDiagnosticVMOptions"
+                       #_"-XX:+PrintAssembly"
+                       #_"-XX:CompileCommand=print,io.lacuna.artifex.Vec::equals"
+                       #_"-XX:CompileCommand=dontinline,io.lacuna.artifex.Vec::equals"]
 
   ;; Maven properties for the Maven God
   :scm {:url "git@github.com:lacuna/artifex.git"}

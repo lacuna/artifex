@@ -1,13 +1,15 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.utils.PlaneSweep;
-import io.lacuna.artifex.utils.PlaneSweep.Intersection;
+import io.lacuna.artifex.utils.EdgeList;
+import io.lacuna.artifex.utils.Triangulation;
 import io.lacuna.bifurcan.*;
+import io.lacuna.bifurcan.utils.Iterators;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import static io.lacuna.artifex.Vec.vec;
+import static io.lacuna.bifurcan.utils.Iterators.toStream;
 
 /**
  * @author ztellman
@@ -38,18 +40,18 @@ public class Region2 {
 
           Vec2 i = b.start();
           Vec2 j = b.end();
-          signedArea += (j.x - i.x) * (j.y + i.y);
+          signedArea += (i.x * j.y) - (j.x * i.y);
         }
       }
 
       this.isClockwise = signedArea < 0;
       this.bounds = bounds;
-      this.curves = curves.update(curves.size() - 1, c -> c.end(curves.first().start())).toArray(Curve2.class);
+      this.curves = curves.update(curves.size() - 1, c -> c.end(curves.first().start())).toArray(Curve2[]::new);
     }
 
     public Ring reverse() {
       return new Ring(
-        LinearList.from(Lists.reverse(Lists.lazyMap(Lists.from(curves), Curve2::reverse))).toArray(Curve2.class),
+        LinearList.from(Lists.reverse(Lists.lazyMap(Lists.from(curves), Curve2::reverse))).toArray(Curve2[]::new),
         bounds,
         !isClockwise);
     }
@@ -62,17 +64,6 @@ public class Region2 {
       LineSegment2 ray = LineSegment2.from(p, vec(bounds.ux + 1, p.y));
       return Arrays.stream(curves).filter(c -> c.intersects(ray)).count() % 2 == 1;
     }
-
-    public Polygon2.Ring subdivide(double error) {
-      IList<Vec2> result = new LinearList<>();
-      for (Curve2 c : curves) {
-        Vec2[] vertices = c.subdivide(error);
-        for (int i = 1; i < vertices.length; i++) {
-          result.addLast(vertices[i]);
-        }
-      }
-      return new Polygon2.Ring(result);
-    }
   }
 
   public static Ring ring(Iterable<Vec2> vertices) {
@@ -84,18 +75,20 @@ public class Region2 {
     return new Ring(segments);
   }
 
-  private final Ring perimeter;
-  private final IList<Ring> holes;
+  // perimeters onto interior holes
+  private final LinearMap<Ring, IList<Ring>> subRegions = new LinearMap<>();
 
-  Region2(Ring perimeter, IList<Ring> holes) {
-    this.perimeter = perimeter;
-    this.holes = holes;
+  public Region2(Ring perimeter, Iterable<Ring> holes) {
+    subRegions.put(
+      perimeter.isClockwise ? perimeter.reverse() : perimeter,
+      toStream(holes.iterator()).map(r -> r.isClockwise ? r : r.reverse()).collect(Lists.linearCollector()));
   }
 
-  public Polygon2 subdivide(double error) {
-    return new Polygon2(
-      perimeter.subdivide(error),
-      holes.stream().map(r -> r.subdivide(error)).collect(Lists.linearCollector()));
+  public EdgeList edgeList() {
+    return EdgeList.from(subRegions);
   }
 
+  public Fan2[] fans() {
+    return EdgeList.from(subRegions).fans().toArray(Fan2[]::new);
+  }
 }

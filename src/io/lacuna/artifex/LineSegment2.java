@@ -2,6 +2,7 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 import io.lacuna.artifex.utils.Intersections;
+import io.lacuna.artifex.utils.Scalars;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ import static io.lacuna.artifex.Vec.vec;
 public class LineSegment2 implements Curve2 {
 
   private final double ax, ay, bx, by;
+  private int hash = -1;
 
   private LineSegment2(double ax, double ay, double bx, double by) {
     this.ax = ax;
@@ -95,8 +97,9 @@ public class LineSegment2 implements Curve2 {
   }
 
   @Override
-  public double[] intersections(Curve2 c, double epsilon) throws CollinearException {
-    if (c instanceof LineSegment2) {
+  public double[] intersections(Curve2 c, double epsilon) {
+
+    if (false /*c instanceof LineSegment2*/) {
       LineSegment2 p = this;
       LineSegment2 q = (LineSegment2) c;
 
@@ -105,7 +108,7 @@ public class LineSegment2 implements Curve2 {
 
       double d = (-qv.x * pv.y) + (pv.x * qv.y);
       if (d == 0) {
-        throw new CollinearException(this, c);
+        return Intersections.collinearIntersection(p, q);
       }
 
       double s = ((-pv.y * (p.ax - q.ax)) + (pv.x * (p.ay - q.ay))) / d;
@@ -145,16 +148,22 @@ public class LineSegment2 implements Curve2 {
 
   @Override
   public int hashCode() {
-    return Hashes.hash(ax, ay, bx, by);
+    if (hash == -1) {
+      hash = Hashes.hash(ax, ay, bx, by);
+    }
+    return hash;
   }
 
   @Override
   public boolean equals(Object obj) {
-    if (obj instanceof LineSegment2) {
+    if (obj == this) {
+      return true;
+    } else if (obj instanceof LineSegment2) {
       LineSegment2 s = (LineSegment2) obj;
       return ax == s.ax && ay == s.ay && bx == s.bx && by == s.by;
+    } else {
+      return false;
     }
-    return false;
   }
 
   @Override
