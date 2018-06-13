@@ -3,6 +3,7 @@ package io.lacuna.artifex;
 import io.lacuna.artifex.utils.Intersections;
 import io.lacuna.artifex.utils.Scalars;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static io.lacuna.artifex.Box.box;
@@ -12,6 +13,8 @@ import static io.lacuna.artifex.utils.Scalars.EPSILON;
  * @author ztellman
  */
 public interface Curve2 {
+
+  double SPLIT_EPSILON = 1e-9;
 
   /**
    * @param t a value within [0,1]
@@ -51,17 +54,36 @@ public interface Curve2 {
    */
   Curve2[] split(double t);
 
+  /**
+   * Performs multiple splits. Typically for N split points this will return N+1 curves, but any split intervals
+   * less than {@code Curve2.SPLIT_EPSILON} will be ignored.
+   *
+   * @param ts an array of parametric split points, which will be sorted in-place
+   * @return an array of curves, split at the specified points.
+   */
   default Curve2[] split(double[] ts) {
-    Curve2[] result = new Curve2[ts.length + 1];
+    Arrays.sort(ts);
+
+    int len = 0;
+    double prev = 0;
+    for (int i = 0; i < ts.length; i++) {
+      if (ts[i] - prev > SPLIT_EPSILON && ts[i] < 1 - SPLIT_EPSILON) {
+        prev = ts[i];
+        ts[len++] = prev;
+      }
+    }
+
+    Curve2[] result = new Curve2[len + 1];
     Curve2 c = this;
 
-    double scale = 1;
-    for (int i = 0; i < ts.length; i++) {
+    prev = 0;
+    for (int i = 0; i < len; i++) {
       double p = ts[i];
-      Curve2[] parts = c.split(p * scale);
+      Curve2[] parts = c.split((p - prev) / (1 - prev));
+      prev = p;
+
       result[i] = parts[0];
       c = parts[1];
-      scale /= p;
     }
     result[result.length - 1] = c;
 
@@ -98,8 +120,15 @@ public interface Curve2 {
     return Vec.equals(u, v, EPSILON) || Vec.equals(u, v.negate(), EPSILON);
   }
 
-  default boolean intersects(Curve2 c) {
-    return intersections(c).length > 0;
+  default boolean intersects(Curve2 c, boolean includeEndpoints) {
+    double[] ts = intersections(c);
+    if (ts.length > 2) {
+      return true;
+    } else if (ts.length == 2) {
+      return includeEndpoints || !((ts[0] == 0 || ts[0] == 1) && (ts[1] == 0 || ts[1] == 1));
+    } else {
+      return false;
+    }
   }
 
   default double[] intersections(Curve2 c, double epsilon) {

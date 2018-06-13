@@ -96,21 +96,24 @@ public class Intersections {
   }
 
   public static double[] collinearIntersection(Curve2 a, Curve2 b) {
-    double[] result = new double[4];
+    DoubleAccumulator acc = new DoubleAccumulator();
 
     for (int i = 0; i < 2; i++) {
-      int offset = i << 1;
       double tb = b.nearestPoint(a.position(i));
 
       // a overhangs the start of b
       if (tb <= 0) {
-        result[offset] = a.nearestPoint(b.start());
-        result[offset + 1] = 0;
+        double s = a.nearestPoint(b.start());
+        if (0 <= s && s <= 1) {
+          acc.add(s, 0);
+        }
 
         // a overhangs the end of b
       } else if (tb >= 1) {
-        result[offset] = a.nearestPoint(b.end());
-        result[offset + 1] = 1;
+        double s = a.nearestPoint(b.end());
+        if (0 <= s && s <= 1) {
+          acc.add(s, 1);
+        }
 
         // a is contained in b
       } else {
@@ -118,7 +121,11 @@ public class Intersections {
       }
     }
 
-    return result;
+    if (acc.size() == 4 && acc.get(0) == acc.get(2)) {
+      acc.pop(2);
+    }
+
+    return acc.toArray();
   }
 
   private static boolean addIntersection(CurveInterval a, CurveInterval b, DoubleAccumulator acc, double epsilon) {

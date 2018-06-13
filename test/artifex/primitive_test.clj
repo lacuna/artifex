@@ -17,9 +17,10 @@
    [io.lacuna.artifex
     Box
     Box2
+    Region2
+    Region2$Ring
     Polygon2$Ring
     LineSegment2
-    CircularArc2
     Curve2
     Bezier2
     Region2
@@ -71,12 +72,13 @@
   ([a b c d]
    (Bezier2/bezier a b c d)))
 
-(defn arc
-  [a b r]
-  (CircularArc2/from a b r true))
-
 (defn line-segment [a b]
   (LineSegment2/from a b))
+
+(defn region [curves & holes]
+  (Region2.
+    (Region2$Ring. curves)
+    (map #(Region2$Ring. %) holes)))
 
 (defn unvertex [v]
   (condp instance? v
@@ -93,11 +95,6 @@
 
 (defn random-bezier [points min max]
   (apply bezier (repeatedly points #(random-vector min max))))
-
-(defn random-arc [min max]
-  (let [[a b] (repeatedly 2 #(random-vector min max))
-        r     (-> b (.sub a) .length (* (+ 0.5 (rand))))]
-    (arc a b r)))
 
 ;; vectors
 
@@ -144,27 +141,7 @@
 
 ;; Intersections
 
-#_(deftest test-plane-sweep
-  (dotimes [_ 1e2]
-    (let [[a b]
-          (repeatedly 2
-            (fn []
-              (->> (repeatedly #(random-vector 0 1))
-                (take 1e2)
-                (partition 2)
-                (map #(apply line-segment %)))))
-
-          intersections
-          (->> (for [x a, y b] [x y])
-            (map set)
-            (filter #(.intersects ^LineSegment2 (first %) (second %)))
-            (into #{}))]
-      (is
-        (= intersections
-          (->>
-            (Intersections/intersections a b (function identity))
-            (map #(set [(.a %) (.b %)]))
-            set))))))
+;; todo
 
 ;; LinearRing2
 
@@ -193,16 +170,11 @@
 (deftest test-curves
   (let [quad   (bezier (v 0 0) (v 1 1) (v 2 0))
         cubic  (bezier (v 0 0) (v 1 1) (v 2 1) (v 3 0))
-        circle (arc (v 0 -1) (v 0 1) 1)
         isq2   (/ 1 (Math/sqrt 2))]
 
     ;; position
     (are [b t coords]
         (Vec/equals (apply v coords) (.position b t) Scalars/EPSILON)
-
-      circle 0   [0 -1]
-      circle 0.5 [-1 0]
-      circle 1   [0 1]
 
       quad   0   [0 0]
       quad   0.5 [1 0.5]
@@ -216,10 +188,6 @@
     (are [b t coords]
         (Vec/equals (apply v coords) (.norm (.direction b t)) Scalars/EPSILON)
 
-      circle 0   [-1 0]
-      circle 0.5 [0 1]
-      circle 1   [1 0]
-
       quad   0   [isq2 isq2]
       quad   0.5 [1 0]
       quad   1   [isq2 (- isq2)]
@@ -227,6 +195,10 @@
       cubic  0.5 [1 0])
 
     ))
+
+;; CubicBezier2.quadratics
+
+;; todo
 
 ;; Curve2.split
 
@@ -254,10 +226,9 @@
     (let [linear (random-bezier 2 -1 1)
           quad   (random-bezier 3 -1 1)
           cubic  (random-bezier 4 -1 1)
-          circle (random-arc -1 1)
           splits (->> (range 1 10) (map #(/ 1 %)) (map double))]
       (doseq [t splits]
-        (doseq [c [linear quad cubic circle]]
+        (doseq [c [linear quad cubic]]
           (split-and-check c t 100))))))
 
 ;; Curve2.nearestPoint
@@ -272,15 +243,30 @@
 (deftest test-nearest-point
   (let [linear (bezier (v 0 0) (v 1 1))
         quad   (bezier (v 0 0) (v 1 1) (v 2 0))
-        cubic  (bezier (v 0 0) (v 1 1) (v 2 1) (v 3 0))
-        circle (arc (v -1 0) (v 0 1) 1)]
+        cubic  (bezier (v 0 0) (v 1 1) (v 2 -1) (v 3 0))]
     (doseq [v (repeatedly 1e3 #(random-vector -5 5))]
-      (doseq [c [linear quad cubic circle]]
+      (doseq [c [linear quad cubic]]
         (let [t0 (nearest-point c v)
               t1 (max 0 (min 1 (.nearestPoint c v)))
               d0 (-> c (.position t0) (.sub v) .length)
               d1 (-> c (.position t1) (.sub v) .length)]
           (is (< (Math/abs (- d0 d1)) 1e-2) v))))))
+
+;; Curve2.inflections
+
+(defn no-post-split-inflections [^Curve2 c]
+  (->> (.split c (.inflections c))
+    (mapcat #(seq (.inflections %)))
+    (#(do (when-not (empty? %) (prn %)) %))
+    empty?))
+
+(deftest test-inflections
+  (dotimes [_ 1e6]
+    (let [q (random-bezier 3 -1 1)
+          c (random-bezier 4 -1 1)]
+      (is (no-post-split-inflections q))
+      ;; there are pathological shapes that can make this fail
+      #_(is (no-post-split-inflections c)))))
 
 ;; Curve2.subdivide
 
@@ -303,11 +289,7 @@
   (doseq [points [3 4]]
     (doseq [error (->> (range 4) (map #(Math/pow 10 (- %))))]
       (dotimes [_ 10]
-        (is (>= error (subdivision-error (random-bezier points -10 10) error))))))
-
-  (doseq [error (->> (range 4) (map #(Math/pow 10 (- %))))]
-    (dotimes [_ 10]
-      (is (>= error (subdivision-error (random-arc -10 10) error))))))
+        (is (>= error (subdivision-error (random-bezier points -10 10) error)))))))
 
 ;; Curve2.bounds
 
@@ -326,10 +308,7 @@
 (deftest test-bounds
   (doseq [points [2 3 4]]
     (dotimes [_ 1e3]
-      (check-bounds (random-bezier points -10 10))))
-
-  (dotimes [_ 1e3]
-    (check-bounds (random-arc -10 10))))
+      (check-bounds (random-bezier points -10 10)))))
 
 ;; Matrix3
 

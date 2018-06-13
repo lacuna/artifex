@@ -10,11 +10,23 @@ public class DoubleAccumulator {
   private double[] values = new double[2];
   private int index = 0;
 
+  private void expand() {
+    double[] values = new double[this.values.length << 1];
+    arraycopy(this.values, 0, values, 0, this.values.length);
+    this.values = values;
+  }
+
+  public void add(double n) {
+    if (index > this.values.length - 1) {
+      expand();
+    }
+
+    values[index++] = n;
+  }
+
   public void add(double a, double b) {
     if (index > this.values.length - 2) {
-      double[] values = new double[this.values.length << 1];
-      arraycopy(this.values, 0, values, 0, this.values.length);
-      this.values = values;
+      expand();
     }
 
     values[index++] = a;

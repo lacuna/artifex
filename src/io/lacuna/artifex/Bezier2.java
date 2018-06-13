@@ -10,6 +10,7 @@ import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.utils.Equations.solveCubic;
 import static io.lacuna.artifex.utils.Equations.solveQuadratic;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static io.lacuna.artifex.utils.Scalars.inside;
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
@@ -19,15 +20,17 @@ import static java.lang.Math.max;
  */
 public class Bezier2 {
 
-  public static LineSegment2 bezier(Vec2 p0, Vec2 p1) {
+  public static Curve2 bezier(Vec2 p0, Vec2 p1) {
     return LineSegment2.from(p0, p1);
   }
 
-  public static QuadraticBezier2 bezier(Vec2 p0, Vec2 p1, Vec2 p2) {
-    return new QuadraticBezier2(p0, p1, p2);
+  public static Curve2 bezier(Vec2 p0, Vec2 p1, Vec2 p2) {
+    return Math.abs(Vec2.cross(p1.sub(p0), p2.sub(p0))) < EPSILON
+      ? bezier(p0, p2)
+      : new QuadraticBezier2(p0, p1, p2);
   }
 
-  public static CubicBezier2 bezier(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
+  public static Curve2 bezier(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
     return new CubicBezier2(p0, p1, p2, p3);
   }
 
@@ -103,16 +106,16 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
-      if (t == 0 || t == 1) {
-        return new QuadraticBezier2[]{this};
-      } else if (t < 0 || t > 1) {
+      if (t < 0 || t > 1) {
         throw new IllegalArgumentException("t must be within [0,1]");
+      } else if (t < SPLIT_EPSILON || t > 1 - SPLIT_EPSILON) {
+        return new QuadraticBezier2[]{this};
       }
 
       Vec2 e = lerp(p0, p1, t);
       Vec2 f = lerp(p1, p2, t);
       Vec2 g = lerp(e, f, t);
-      return new QuadraticBezier2[]{bezier(p0, e, g), bezier(g, f, p2)};
+      return new Curve2[]{bezier(p0, e, g), bezier(g, f, p2)};
     }
 
     @Override
@@ -178,12 +181,12 @@ public class Bezier2 {
 
       if (inflections == null) {
         Vec2 div = p0.sub(p1.mul(2)).add(p2);
-        if (div.x == 0 || div.y == 0) {
+        if (div.equals(Vec2.ORIGIN)) {
           inflections = new double[0];
         } else {
           Vec2 v = p0.sub(p1).div(div);
-          boolean x = inside(0, v.x, 1);
-          boolean y = inside(0, v.y, 1);
+          boolean x = inside(SPLIT_EPSILON, v.x, 1 - SPLIT_EPSILON);
+          boolean y = inside(SPLIT_EPSILON, v.y, 1 - SPLIT_EPSILON);
           if (x && y) {
             inflections = new double[]{v.x, v.y};
           } else if (x ^ y) {
@@ -281,11 +284,11 @@ public class Bezier2 {
     }
 
     @Override
-    public CubicBezier2[] split(double t) {
-      if (t == 0 || t == 1) {
-        return new CubicBezier2[]{this};
-      } else if (t < 0 || t > 1) {
+    public Curve2[] split(double t) {
+      if (t < 0 || t > 1) {
         throw new IllegalArgumentException("t must be within [0,1]");
+      } else if (t < SPLIT_EPSILON || t > 1 - SPLIT_EPSILON) {
+        return new CubicBezier2[]{this};
       }
 
       Vec2 e = lerp(p0, p1, t);
@@ -294,7 +297,7 @@ public class Bezier2 {
       Vec2 h = lerp(e, f, t);
       Vec2 j = lerp(f, g, t);
       Vec2 k = lerp(h, j, t);
-      return new CubicBezier2[]{bezier(p0, e, h, k), bezier(k, j, g, p3)};
+      return new Curve2[]{bezier(p0, e, h, k), bezier(k, j, g, p3)};
     }
 
     @Override
@@ -372,6 +375,9 @@ public class Bezier2 {
     @Override
     public double[] inflections() {
 
+      // there are pathological shapes that require less precision here
+      final double epsilon = 1e-7;
+
       if (inflections == null) {
         Vec2 a0 = p1.sub(p0);
         Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
@@ -381,14 +387,14 @@ public class Bezier2 {
         double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
 
         int solutions = 0;
-        for (double n : s1) if (inside(0, n, 1)) solutions++;
-        for (double n : s2) if (inside(0, n, 1)) solutions++;
+        for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) solutions++;
+        for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) solutions++;
 
         inflections = new double[solutions];
         if (solutions > 0) {
           int idx = 0;
-          for (double n : s1) if (inside(0, n, 1)) inflections[idx++] = n;
-          for (double n : s2) if (inside(0, n, 1)) inflections[idx++] = n;
+          for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) inflections[idx++] = n;
+          for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) inflections[idx++] = n;
         }
       }
 

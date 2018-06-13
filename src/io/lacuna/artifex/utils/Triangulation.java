@@ -1,29 +1,181 @@
 package io.lacuna.artifex.utils;
 
 import io.lacuna.artifex.*;
-import io.lacuna.artifex.Region2.Ring;
 import io.lacuna.artifex.utils.EdgeList.HalfEdge;
 import io.lacuna.bifurcan.*;
 
 import java.util.Comparator;
-import java.util.Objects;
+import java.util.Iterator;
 import java.util.PriorityQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.LongPredicate;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
+import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.Vec2.angleBetween;
+import static io.lacuna.artifex.Vec2.cross;
 
 /**
  * @author ztellman
  */
 public class Triangulation {
 
+  /// linearize
+
+  public static boolean isClipped(HalfEdge e) {
+    return !(e.curve instanceof LineSegment2)
+      || !(e.next.curve instanceof LineSegment2)
+      || !(e.prev.curve instanceof  LineSegment2);
+  }
+
+  public static boolean isConvex(Curve2 c) {
+    return -angleBetween(c.direction(0).negate(), c.direction(1)) < Math.PI;
+  }
+
+  public static Vec2 tangentIntersection(Curve2 c) {
+    Vec2 pv = c.direction(0);
+    Vec2 qv = c.direction(1).negate();
+
+    double d = cross(pv, qv);
+    if (d == 0) {
+      System.out.println(c);
+      throw new IllegalStateException();
+    }
+
+    double s = cross(qv, c.start().sub(c.end())) / d;
+    return c.start().add(pv.mul(s));
+  }
+
+  public static double hullArea(Curve2 curve) {
+    if (curve instanceof LineSegment2) {
+      return 0;
+    }
+
+    Vec2 a = curve.start();
+    Vec2 b = curve.end();
+    Vec2 c = tangentIntersection(curve);
+    return Math.abs(((a.x - c.x) * (b.y - a.y)) - ((a.x - b.x) * (c.y - a.y))) / 2;
+  }
+
+  public static LineSegment2 intersector(Curve2 c) {
+    if (c instanceof LineSegment2) {
+      return (LineSegment2) c;
+    } else if (isConvex(c)) {
+      return LineSegment2.from(c.start(), c.end());
+    } else {
+      return LineSegment2.from(c.start(), tangentIntersection(c));
+    }
+  }
+
+  public static void add(SweepQueue<HalfEdge> queue, IMap<HalfEdge, LineSegment2> intersectors, HalfEdge e) {
+    LineSegment2 l = intersector(e.curve);
+    intersectors.put(e, l);
+    queue.add(e, l.start().x, l.end().x);
+  }
+
+  public static void linearize(EdgeList edges) {
+    IMap<HalfEdge, LineSegment2> intersectors = new LinearMap<>();
+    SweepQueue<HalfEdge> queue = new SweepQueue<>();
+    for (Vec2 v : edges.vertices()) {
+      add(queue, intersectors, edges.edge(v));
+    }
+
+    HalfEdge curr = queue.next();
+    while (curr != null) {
+      LineSegment2 a = intersectors.get(curr).get();
+      for (HalfEdge e : queue.active()) {
+        if (e == curr) {
+          continue;
+        }
+
+        LineSegment2 b = intersectors.get(e, null);
+        if (b != null && a.intersects(b, false)) {
+          System.out.println(e + " " + a);
+          System.out.println(curr + " " + b);
+          double[] ts = a.intersections(b);
+          for (int i = 0; i < ts.length; i++) {
+            System.out.print(ts[i] + " ");
+          }
+          System.out.println();
+
+          HalfEdge toSplit = hullArea(e.curve) < hullArea(curr.curve) ? curr : e;
+          HalfEdge split = edges.split(toSplit, 0.5);
+
+          intersectors.remove(toSplit);
+          add(queue, intersectors, split);
+          add(queue, intersectors, split.prev);
+
+          if (toSplit == curr) {
+            break;
+          }
+        }
+      }
+
+      curr = queue.next();
+    }
+
+    for (HalfEdge e : intersectors.keys()) {
+      Curve2 c = e.curve;
+      if (c instanceof LineSegment2) {
+        continue;
+      }
+
+      if (isConvex(c)) {
+        edges.add(c.end(), c.start());
+      } else {
+        Vec2 v = tangentIntersection(c);
+        edges.add(c.end(), v);
+        edges.add(v, c.start());
+      }
+    }
+  }
+
+  /// monotonize
+
   private static final Comparator<Vec2> COMPARATOR = Comparator
     .comparingDouble((Vec2 a) -> -a.y)
     .thenComparingDouble(a -> a.x);
+
+  private static class MonotonicState {
+    private final LinearMap<HalfEdge, Vec2> helper = new LinearMap<>();
+    private final FloatMap<HalfEdge> map = new FloatMap<HalfEdge>().linear();
+
+    public MonotonicState() {
+    }
+
+    private static double key(HalfEdge e) {
+      return Math.min(e.curve.start().x, e.curve.end().x);
+    }
+
+    public void add(HalfEdge e) {
+      map.put(key(e), e);
+      helper.put(e, e.origin());
+    }
+
+    public void helper(HalfEdge a, Vec2 v) {
+      helper.put(a, v);
+    }
+
+    public Vec2 helper(HalfEdge a) {
+      return helper.get(a).get();
+    }
+
+    public void remove(HalfEdge e) {
+      HalfEdge x = map.get(key(e), null);
+      if (x == e) {
+        map.remove(key(e));
+      }
+      helper.remove(e);
+    }
+
+    public HalfEdge search(Vec2 v) {
+      return map.floor(v.x).value();
+    }
+
+    @Override
+    public String toString() {
+      return map.keys().toString();
+    }
+  }
 
   enum VertexType {
     REGULAR,
@@ -37,7 +189,7 @@ public class Triangulation {
     return COMPARATOR.compare(a, b) < 0;
   }
 
-  public static VertexType vertexType(HalfEdge e) {
+  private static VertexType vertexType(HalfEdge e) {
     Vec2 a = e.prev.curve.start();
     Vec2 b = e.curve.start();
     Vec2 c = e.curve.end();
@@ -51,117 +203,83 @@ public class Triangulation {
     }
   }
 
-  private static void add(FloatMap<HalfEdge> m, HalfEdge e) {
-    m.put(e.origin().x, e);
-  }
-
-  private static void remove(FloatMap<HalfEdge> m, HalfEdge e) {
-    HalfEdge x = m.get(e.origin().x, null);
-    if (e.equals(x)) {
-      m.remove(e.origin().x);
-    }
-  }
-
-  private static HalfEdge closest(FloatMap<HalfEdge> m, HalfEdge e) {
-    IEntry<Double, HalfEdge> entry = m.floor(e.origin().x);
-    return entry == null ? null : entry.value();
-  }
-
-  private static boolean isLeft(HalfEdge e) {
-    return above(e.prev.origin(), e.origin());
-  }
-
-  private static void connect(EdgeList edges, Vec2 reflexVertex, Vec2 v) {
-    LineSegment2 diagonal = LineSegment2.from(reflexVertex, v);
-    if (edges.edgeFrom(v, reflexVertex) != null) {
-      edges.add(diagonal);
-    } else {
-      HalfEdge l = edges.edge(v);
-
-      HalfEdge r = l;
-      while (r.twin != null) {
-        r = r.twin.prev;
-      }
-      r = r.prev;
-
-      for (HalfEdge e : new HalfEdge[] {l, r}) {
-        double[] ts = e.curve.intersections(diagonal);
-        if (ts.length > 2) {
-          edges.add(
-            reflexVertex,
-            edges.split(e, ts[1] == 1.0 ? ts[2] : ts[0]).origin());
-          break;
-        }
-      }
-    }
-  }
-
   public static void monotonize(EdgeList edges) {
 
     // state
     PriorityQueue<HalfEdge> heap = new PriorityQueue<>((a, b) -> COMPARATOR.compare(a.origin(), b.origin()));
-    IMap<HalfEdge, HalfEdge> helper = new LinearMap<>();
-    IMap<HalfEdge, VertexType> type = new LinearMap<>();
-    FloatMap<HalfEdge> horizontal = new FloatMap<HalfEdge>().linear();
+    IMap<Vec2, VertexType> type = new LinearMap<>();
+    MonotonicState state = new MonotonicState();
 
     for (Vec2 v : edges.vertices()) {
       HalfEdge e = edges.edge(v);
+      while (isClipped(e)) {
+        e = e.twin.next;
+      }
       heap.add(e);
-      type.put(e, vertexType(e));
+      type.put(e.origin(), vertexType(e));
     }
 
+    LinearList<Curve2> perimeter = new LinearList<>();
+    HalfEdge currEdge = heap.peek();
+    do {
+      perimeter.addLast(currEdge.curve);
+      System.out.println(type.get(currEdge.origin()).get() + " " + above(currEdge.prev.origin(), currEdge.origin()) + " " + currEdge);
+      currEdge = currEdge.next;
+    } while (currEdge != heap.peek());
+    System.out.println(new Region2.Ring(perimeter).isClockwise);
+
+    System.out.println(heap.size());
+
     // helpers
-    BiConsumer<HalfEdge, HalfEdge> connectHelper = (curr, prev) -> {
-      HalfEdge h = helper.get(prev).get();
-      if (type.get(h).get() == VertexType.MERGE) {
-        connect(edges, h.origin(), curr.origin());
+    BiConsumer<HalfEdge, HalfEdge> connectMergeHelper = (a, b) -> {
+      Vec2 v = state.helper(b);
+      if (type.get(v).get() == VertexType.MERGE) {
+        edges.add(a.origin(), v);
       }
     };
 
     Consumer<HalfEdge> connectLeftHelper = e -> {
-      HalfEdge left = closest(horizontal, e);
-      connectHelper.accept(e, left);
-      helper.put(left, e);
+      HalfEdge left = state.search(e.origin());
+      connectMergeHelper.accept(e, left);
+      state.helper(left, e.origin());
     };
 
     // add diagonals
     while (!heap.isEmpty()) {
       HalfEdge curr = heap.poll();
-      switch (type.get(curr).get()) {
+      HalfEdge prev = curr.prev;
+      //System.out.println(curr.origin() + " " + type.get(curr.origin()).get() + " " + above(curr.prev.origin(), curr.origin()));
+      switch (type.get(curr.origin()).get()) {
         case START:
-          add(horizontal, curr);
-          helper.put(curr, curr);
+          state.add(curr);
           break;
 
         case END:
-          connectHelper.accept(curr, curr.prev);
-          remove(horizontal, curr);
+          connectMergeHelper.accept(curr, prev);
+          state.remove(prev);
           break;
 
         case SPLIT:
-          HalfEdge left = closest(horizontal, curr);
-          HalfEdge h = helper.get(left).get();
-          connect(edges, curr.origin(), h.origin());
+          HalfEdge left = state.search(curr.origin());
+          Vec2 v = state.helper(left);
+          edges.add(curr.origin(), v);
 
-          helper.put(left, curr).put(curr, curr);
-          add(horizontal, curr);
+          state.helper(left, curr.origin());
+          state.add(curr);
           break;
 
         case MERGE:
-          connectHelper.accept(curr, curr.prev);
+          connectMergeHelper.accept(curr, prev);
 
-          remove(horizontal, curr.prev);
+          state.remove(prev);
           connectLeftHelper.accept(curr);
-
-          helper.put(curr, curr);
           break;
 
         case REGULAR:
-          if (isLeft(curr)) {
-            connectHelper.accept(curr, curr.prev);
-            remove(horizontal, curr.prev);
-            add(horizontal, curr);
-            helper.put(curr, curr);
+          if (above(prev.origin(), curr.origin())) {
+            connectMergeHelper.accept(curr, prev);
+            state.remove(prev);
+            state.add(curr);
           } else {
             connectLeftHelper.accept(curr);
           }
@@ -170,17 +288,12 @@ public class Triangulation {
     }
   }
 
-  private static HalfEdge tangentSplit(EdgeList edges, HalfEdge splitter, HalfEdge target) {
-    double dist = splitter.curve.bounds().union(target.curve.bounds()).size().length();
-    Vec2 tangent = splitter.curve.direction(0).norm().mul(dist);
-    double[] ts = target.curve.intersections(LineSegment2.from(splitter.origin(), splitter.origin().add(tangent)));
-
-    return edges.split(target, ts[0]);
-  }
+  /// triangulate
 
   public static void triangulate(EdgeList edges) {
-    for (HalfEdge e : edges.faces().toArray(HalfEdge[]::new)) {
-      triangulate(edges, e);
+    Iterator<HalfEdge> it = edges.faces();
+    while (it.hasNext()) {
+      triangulate(edges, it.next());
     }
   }
 
@@ -194,7 +307,7 @@ public class Triangulation {
       curr = curr.next;
     } while (curr != init);
 
-    if (halfEdges.size() == 3) {
+    if (halfEdges.size() <= 3) {
       return;
     }
     halfEdges = Lists.sort(halfEdges, (a, b) -> COMPARATOR.compare(a.origin(), b.origin()));
@@ -226,7 +339,7 @@ public class Triangulation {
             ? Scalars.inside(1e-3, theta, Math.PI)
             : Scalars.inside(1e-3, (Math.PI * 2) - theta, Math.PI);
 
-          if (isVisible && edges.visible(u, v)) {
+          if (isVisible) {
             popped = stack.popLast();
             edges.add(u, v);
           } else {
@@ -238,18 +351,10 @@ public class Triangulation {
           .addLast(popped)
           .addLast(u);
       } else {
-
         while (stack.size() > 1) {
           Vec2 v = stack.popLast();
-          if (edges.visible(u, v)) {
-            edges.add(u, v);
-          } else {
-            System.out.println("cannot draw between " + u + " " + v + " " + (edges.edgeFrom(u, v) != null) + " " + (edges.edgeFrom(v, u) != null));
-            // TODO need to split the curve above us
-            throw new IllegalStateException();
-          }
+          edges.add(u, v);
         }
-
         stack
           .removeLast()
           .addLast(vertices.nth(i - 1))

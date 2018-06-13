@@ -2,13 +2,11 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 import io.lacuna.artifex.utils.Intersections;
-import io.lacuna.artifex.utils.Scalars;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
+import static io.lacuna.artifex.Vec2.cross;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
 
 /**
  * @author ztellman
@@ -26,6 +24,9 @@ public class LineSegment2 implements Curve2 {
   }
 
   public static LineSegment2 from(Vec2 a, Vec2 b) {
+    if (Vec.equals(a, b, EPSILON)) {
+      throw new IllegalArgumentException("segments must have non-zero length");
+    }
     return new LineSegment2(a.x, a.y, b.x, b.y);
   }
 
@@ -59,10 +60,10 @@ public class LineSegment2 implements Curve2 {
 
   @Override
   public LineSegment2[] split(double t) {
-    if (t == 0 || t == 1) {
-      return new LineSegment2[]{this};
-    } else if (t < 0 || t > 1) {
+    if (t < 0 || t > 1) {
       throw new IllegalArgumentException("t must be within [0,1]");
+    } else if (t < SPLIT_EPSILON || t > 1 - SPLIT_EPSILON) {
+      return new LineSegment2[]{this};
     }
 
     Vec2 v = position(t);
@@ -99,21 +100,25 @@ public class LineSegment2 implements Curve2 {
   @Override
   public double[] intersections(Curve2 c, double epsilon) {
 
-    if (false /*c instanceof LineSegment2*/) {
+    if (c instanceof LineSegment2) {
       LineSegment2 p = this;
       LineSegment2 q = (LineSegment2) c;
 
       Vec2 pv = p.end().sub(p.start());
       Vec2 qv = q.end().sub(q.start());
 
-      double d = (-qv.x * pv.y) + (pv.x * qv.y);
+      double d = cross(pv, qv);
+      Vec2 psq = p.start().sub(q.start());
+
       if (d == 0) {
-        return Intersections.collinearIntersection(p, q);
+        return cross(psq, pv) == 0
+          ? Intersections.collinearIntersection(p, q)
+          : new double[0];
       }
 
-      double s = ((-pv.y * (p.ax - q.ax)) + (pv.x * (p.ay - q.ay))) / d;
+      double s = cross(qv, psq) / d;
       if (s >= 0 && s <= 1) {
-        double t = ((qv.x * (p.ay - q.ay)) - (qv.y * (p.ax - q.ax))) / d;
+        double t = cross(pv, psq) / d;
         if (t >= 0 && t <= 1) {
           return new double[]{s, t};
         }

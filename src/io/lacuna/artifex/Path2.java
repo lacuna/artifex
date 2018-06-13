@@ -78,10 +78,6 @@ public class Path2 {
     return bounds;
   }
 
-  public Region2 extrude(double width) {
-    return null;
-  }
-
   public Iterable<Vec2> vertices(double error) {
     List<Vec2> result = new ArrayList<>();
     for (Curve2 c : curves) {

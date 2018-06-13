@@ -2,7 +2,7 @@
   :description ""
   :url "https://github.com/lacuna/artifex"
   :license {:name "MIT License"}
-  :dependencies [[io.lacuna/bifurcan "0.1.0-SNAPSHOT"]]
+  :dependencies [[io.lacuna/bifurcan "0.1.0-alpha5"]]
   :java-source-paths ["src"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [criterium "0.4.3"]

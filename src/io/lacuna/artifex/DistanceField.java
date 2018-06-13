@@ -1,6 +1,8 @@
 package io.lacuna.artifex;
 
-import io.lacuna.bifurcan.utils.Iterators;
+import io.lacuna.artifex.Region2.Ring;
+import io.lacuna.bifurcan.IMap;
+import io.lacuna.bifurcan.LinearMap;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -86,15 +88,14 @@ public class DistanceField {
     return new Vec3(colors[0], colors[1], colors[2]).div(scale / 2).add(0.5).clamp(0, 1);
   }
 
-  public static DistanceField from(List<Path2> rings, double sampleFrequency) {
-    return from(rings, 4, sampleFrequency, Math.toRadians(3));
+  public static DistanceField from(Region2 region, double sampleFrequency) {
+    return from(region, 4, sampleFrequency, Math.toRadians(3));
   }
 
   private static class FieldCurve {
     public final Curve2 curve;
     public final Box2 bounds;
     public final byte color;
-    public double distSquared = 0;
 
     public FieldCurve(Curve2 curve, byte color) {
       this.curve = curve;
@@ -103,31 +104,27 @@ public class DistanceField {
     }
   }
 
-  public static DistanceField from(List<Path2> rings, int padding, double sampleFrequency, double cornerThreshold) {
+  public static DistanceField from(Region2 region, int padding, double sampleFrequency, double cornerThreshold) {
 
-    // maybe try to fix this automatically?
-    if (rings.stream().anyMatch(p -> !p.isRing())) {
-      throw new IllegalArgumentException("all paths must be rings");
-    }
-
-    Box2 shapeBounds = rings.stream().map(Path2::bounds).reduce(Box2::union).get();
+    Box2 shapeBounds = region.bounds();
     int w = (int) Math.ceil(shapeBounds.size().x * sampleFrequency);
     int h = (int) Math.ceil(shapeBounds.size().y * sampleFrequency);
     Vec2 pixelSize = shapeBounds.size().div(vec(w, h));
     Box2 fieldBounds = shapeBounds.expand(pixelSize.mul(padding));
 
     // if our point isn't outside the curves, we've got the winding direction wrong
-    if (insideRings(rings, fieldBounds.lower())) {
+    /*if (insideRings(rings, fieldBounds.lower())) {
       rings = rings.stream().map(Path2::reverse).collect(Collectors.toList());
+    }*/
+
+    IMap<Curve2, Byte> curveMap = new LinearMap<>();
+
+    for (Ring r : region.rings()) {
+      curveMap.union(edgeColors(r, cornerThreshold));
     }
 
-    Map<Curve2, Byte> curveMap = new HashMap<>();
-    for (Path2 ring : rings) {
-      curveMap.putAll(edgeColors(ring, cornerThreshold));
-    }
-
-    FieldCurve[] curves = curveMap.entrySet().stream()
-      .map(e -> new FieldCurve(e.getKey(), e.getValue()))
+    FieldCurve[] curves = curveMap.stream()
+      .map(e -> new FieldCurve(e.key(), e.value()))
       .toArray(FieldCurve[]::new);
 
     float[][][] field = new float[w][h][3];
@@ -236,14 +233,14 @@ public class DistanceField {
     return dot(ta, tb) <= 0 || abs(cross(ta, tb)) > crossThreshold;
   }
 
-  private static List<Integer> cornerIndices(Path2 ring, double angleThreshold) {
+  private static List<Integer> cornerIndices(Ring ring, double angleThreshold) {
     List<Integer> corners = new ArrayList<>();
-    List<Curve2> curves = Arrays.asList(ring.curves());
+    Curve2[] curves = ring.curves;
     double crossThreshold = sin(angleThreshold);
 
-    Curve2 prev = curves.get(curves.size() - 1);
-    for (int i = 0; i < curves.size(); i++) {
-      Curve2 curr = curves.get(i);
+    Curve2 prev = curves[curves.length - 1];
+    for (int i = 0; i < curves.length; i++) {
+      Curve2 curr = curves[i];
       if (isCorner(prev, curr, crossThreshold)) {
         corners.add(i);
       }
@@ -257,10 +254,11 @@ public class DistanceField {
     return c.split(new double[]{0.33, 0.66});
   }
 
-  private static Map<Curve2, Byte> edgeColors(Path2 ring, double angleThreshold) {
-    Map<Curve2, Byte> edgeColors = new HashMap<>();
+  // TODO: how many of these cases are avoided by splitting on inflections?
+  private static IMap<Curve2, Byte> edgeColors(Ring ring, double angleThreshold) {
+    IMap<Curve2, Byte> edgeColors = new LinearMap<>();
     List<Integer> corners = cornerIndices(ring, angleThreshold);
-    Curve2[] curves = ring.curves();
+    Curve2[] curves = ring.curves;
 
     if (corners.isEmpty()) {
       // smooth contour
