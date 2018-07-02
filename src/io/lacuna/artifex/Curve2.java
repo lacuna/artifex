@@ -31,16 +31,9 @@ public interface Curve2 {
   }
 
   /**
-   * @return an updated curve with the start point as {@code pos}
+   * @return an updated curve with the specified endpoints.
    */
-  default Curve2 start(Vec2 pos) {
-    return reverse().end(pos).reverse();
-  }
-
-  /**
-   * @return an updated curve with the end point at {@code pos}
-   */
-  Curve2 end(Vec2 pos);
+  Curve2 endpoints(Vec2 start, Vec2 end);
 
   /**
    * @param t a value within [0,1]
@@ -73,19 +66,26 @@ public interface Curve2 {
       }
     }
 
+    // we want the endpoints of the split curves to *exactly* equal the values returned by position()
+    Vec2[] endpoints = new Vec2[len + 2];
+    for (int i = 0; i < len; i++) {
+      endpoints[i + 1] = position(ts[i]);
+    }
+    endpoints[0] = start();
+    endpoints[endpoints.length - 1] = end();
+
     Curve2[] result = new Curve2[len + 1];
     Curve2 c = this;
-
     prev = 0;
     for (int i = 0; i < len; i++) {
       double p = ts[i];
       Curve2[] parts = c.split((p - prev) / (1 - prev));
       prev = p;
 
-      result[i] = parts[0];
+      result[i] = parts[0].endpoints(endpoints[i], endpoints[i + 1]);
       c = parts[1];
     }
-    result[result.length - 1] = c;
+    result[len] = c.endpoints(endpoints[len], endpoints[len + 1]);
 
     return result;
   }
@@ -118,17 +118,6 @@ public interface Curve2 {
     Vec2 u = direction(ts[0]).norm();
     Vec2 v = c.direction(ts[1]).norm();
     return Vec.equals(u, v, EPSILON) || Vec.equals(u, v.negate(), EPSILON);
-  }
-
-  default boolean intersects(Curve2 c, boolean includeEndpoints) {
-    double[] ts = intersections(c);
-    if (ts.length > 2) {
-      return true;
-    } else if (ts.length == 2) {
-      return includeEndpoints || !((ts[0] == 0 || ts[0] == 1) && (ts[1] == 0 || ts[1] == 1));
-    } else {
-      return false;
-    }
   }
 
   default double[] intersections(Curve2 c, double epsilon) {

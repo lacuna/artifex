@@ -7,7 +7,6 @@
   (:import
    [io.lacuna.artifex.utils
     Intersections
-    Triangulation
     Scalars
     EdgeList]
    [java.util.function
@@ -75,10 +74,8 @@
 (defn line-segment [a b]
   (LineSegment2/from a b))
 
-(defn region [curves & holes]
-  (Region2.
-    (Region2$Ring. curves)
-    (map #(Region2$Ring. %) holes)))
+(defn region [rings]
+  (Region2. (map #(Region2$Ring. %) rings)))
 
 (defn unvertex [v]
   (condp instance? v
@@ -127,17 +124,6 @@
     [8 4 2 1] .div [8 8 8 8] [1 2 4 8]
 
     ))
-
-;; Triangulation
-
-(defn region-vertices [vs]
-  (Region2. (Region2/ring vs) []))
-
-(defn faces [edge-list]
-  (->> edge-list
-    .faces
-    (map #(.ring edge-list %))
-    (mapv (partial mapv #(unvertex (.start %))))))
 
 ;; Intersections
 
@@ -260,7 +246,7 @@
     (#(do (when-not (empty? %) (prn %)) %))
     empty?))
 
-(deftest test-inflections
+#_(deftest test-inflections
   (dotimes [_ 1e6]
     (let [q (random-bezier 3 -1 1)
           c (random-bezier 4 -1 1)]
@@ -279,7 +265,7 @@
       (map #(.position c (/ % 1e2)))
       (map (fn [v]
              (->> segments
-               (map (fn [^Curve2 c] (.position c (.nearestPoint c v))))
+               (map (fn [^Curve2 c] (.position c (Scalars/clamp 0 (.nearestPoint c v) 1))))
                (map #(.lengthSquared (.sub v ^Vec2 %)))
                (apply min)
                Math/sqrt)))

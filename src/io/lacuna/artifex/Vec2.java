@@ -128,6 +128,11 @@ public class Vec2 implements Vec<Vec2> {
     Vec2 na = a.norm();
     Vec2 nb = b.norm();
 
+    // this seems to be necessary, probably due to imprecision in Math.sqrt
+    if (Vec.equals(na, nb, Scalars.EPSILON)) {
+      return 0;
+    }
+
     double theta = acos(Scalars.clamp(-1.0, dot(na, nb), 1.0));
     if (cross(na, nb) > 0) {
       theta = (Math.PI * 2) - theta;

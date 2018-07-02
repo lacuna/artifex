@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
+import static io.lacuna.artifex.Vec.vec;
 import static java.lang.Math.cos;
 import static java.lang.Math.sin;
 
@@ -37,6 +38,13 @@ public class Matrix4 {
     this.elements = elements;
   }
 
+  public static Matrix4 from(Vec3 a, Vec3 b, Vec3 c) {
+    return new Matrix4(a.x, b.x, c.x, 0, a.y, b.y, c.y, 0, a.z, b.z, c.z, 0, 0, 0, 0, 1);
+  }
+
+  public static Matrix4 from(Vec4 a, Vec4 b, Vec4 c, Vec4 d) {
+    return new Matrix4(a.x, b.x, c.x, d.x, a.y, b.y, c.y, d.y, a.z, b.z, c.z, d.z, a.w, b.w, c.w, d.w);
+  }
 
   public static Matrix4 translate(double x, double y, double z) {
     return new Matrix4(
@@ -117,6 +125,16 @@ public class Matrix4 {
 
   public double get(int row, int column) {
     return elements[(row << 2) + column];
+  }
+
+  public Vec4 row(int row) {
+    int idx = row << 2;
+    return vec(elements[idx], elements[idx + 1], elements[idx + 2], elements[idx + 3]);
+  }
+
+  public Vec4 column(int column) {
+    int idx = column;
+    return vec(elements[idx], elements[idx + 4], elements[idx + 8], elements[idx + 12]);
   }
 
   public Matrix4 mul(Matrix4 b) {

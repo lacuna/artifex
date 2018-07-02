@@ -7,6 +7,7 @@ import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
+import static io.lacuna.artifex.utils.Scalars.inside;
 
 /**
  * @author ztellman
@@ -50,6 +51,14 @@ public class LineSegment2 implements Curve2 {
 
   @Override
   public Vec2 position(double t) {
+    if (t < 0 || t > 1) {
+      throw new IllegalArgumentException("t must be within [0, 1]: " + t);
+    } else if (t < EPSILON) {
+      return start();
+    } else if (t + EPSILON > 1) {
+      return end();
+    }
+
     return new Vec2(ax + (bx - ax) * t, ay + (by - ay) * t);
   }
 
@@ -78,8 +87,8 @@ public class LineSegment2 implements Curve2 {
   }
 
   @Override
-  public LineSegment2 end(Vec2 pos) {
-    return from(start(), pos);
+  public LineSegment2 endpoints(Vec2 start, Vec2 end) {
+    return from(start, end);
   }
 
   @Override

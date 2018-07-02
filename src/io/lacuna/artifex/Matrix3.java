@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
+import static io.lacuna.artifex.Vec.vec;
+
 /**
  * @author ztellman
  */
@@ -84,6 +86,16 @@ public class Matrix3 {
 
   public double get(int row, int column) {
     return elements[(row * 3) + column];
+  }
+
+  public Vec3 row(int row) {
+    int idx = row * 2;
+    return vec(elements[idx], elements[idx + 1], elements[idx + 2]);
+  }
+
+  public Vec3 column(int column) {
+    int idx = column;
+    return vec(elements[idx], elements[idx + 3], elements[idx + 6]);
   }
 
   public Matrix3 mul(Matrix3 b) {

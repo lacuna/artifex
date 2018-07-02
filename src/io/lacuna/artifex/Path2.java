@@ -57,8 +57,13 @@ public class Path2 {
     this.isRing = Vec.equals(l.first().start(), l.last().end(), EPSILON);
     this.curves = l.toArray(Curve2[]::new);
 
+    for (int i = 0; i < curves.length - 1; i++) {
+      curves[i] = curves[i].endpoints(curves[i].start(), curves[i + 1].start());
+    }
+
     if (isRing) {
-      curves[curves.length - 1] = curves[curves.length - 1].end(curves[0].start());
+      int lastIdx = curves.length - 1;
+      curves[lastIdx] = curves[lastIdx].endpoints(curves[lastIdx].start(), curves[0].start());
     }
   }
 

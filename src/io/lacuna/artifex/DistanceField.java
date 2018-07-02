@@ -120,7 +120,7 @@ public class DistanceField {
     IMap<Curve2, Byte> curveMap = new LinearMap<>();
 
     for (Ring r : region.rings()) {
-      curveMap.union(edgeColors(r, cornerThreshold));
+      curveMap = curveMap.union(edgeColors(r, cornerThreshold));
     }
 
     FieldCurve[] curves = curveMap.stream()

@@ -117,7 +117,7 @@ public class Intersections {
 
         // a is contained in b
       } else {
-        return new double[]{i, tb};
+        acc.add(i, tb);
       }
     }
 

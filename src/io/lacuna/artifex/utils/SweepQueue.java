@@ -1,17 +1,19 @@
 package io.lacuna.artifex.utils;
 
-import io.lacuna.artifex.Curve2;
-import io.lacuna.bifurcan.IList;
 import io.lacuna.bifurcan.ISet;
-import io.lacuna.bifurcan.LinearList;
 import io.lacuna.bifurcan.LinearSet;
 
 import java.util.*;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
-import java.util.function.ToDoubleFunction;
+
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 /**
+ * A quasi-implementation of the plane sweep algorithm.  This will only compare edges which overlap on the x-axis, but
+ * does not maintain a sorted tree of the y-axis to ensure only adjacent curves have intersection checks.  This means
+ * that this is worst-case O(N ^ 2) rather than O(N log N), but outside of heavy-duty GIS applications I'm not sure this
+ * is a real problem.  This may be worth revisiting.
+ *
  * @author ztellman
  */
 public class SweepQueue<T> {
@@ -21,17 +23,17 @@ public class SweepQueue<T> {
     CLOSED
   }
 
-  static class Event<T> {
+  public static class Event<T> {
 
     static final Comparator<Event> COMPARATOR = Comparator
       .comparingDouble((Event e) -> e.key)
-      .thenComparing(e -> e.type == EventType.OPEN ? 0 : 1);
+      .thenComparingInt(e -> e.type == EventType.OPEN ? 0 : 1);
 
-    final double key;
-    final T value;
-    final EventType type;
+    public final double key;
+    public final T value;
+    public final EventType type;
 
-    public Event(double key, T value, EventType type) {
+    Event(double key, T value, EventType type) {
       this.key = key;
       this.value = value;
       this.type = type;
@@ -42,32 +44,60 @@ public class SweepQueue<T> {
   private final ISet<T> set = new LinearSet<>();
 
   public void add(T value, double a, double b) {
-    if (b > a) {
-      double tmp = a;
-      a = b;
-      b = tmp;
+    if (!set.contains(value)) {
+      queue.add(new Event<>(min(a, b), value, EventType.OPEN));
+      queue.add(new Event<>(max(a, b), value, EventType.CLOSED));
     }
-
-    queue.add(new Event<>(a, value, EventType.OPEN));
-    queue.add(new Event<>(b, value, EventType.CLOSED));
   }
 
-  public T next() {
-    if (queue.isEmpty()) {
+  public double peek() {
+    return queue.isEmpty() ? Double.MAX_VALUE : queue.peek().key;
+  }
+
+  private static <T> int compare(SweepQueue<T> a, SweepQueue<T> b) {
+    return Event.COMPARATOR.compare(a.queue.peek(), b.queue.peek());
+  }
+
+  public static <T> int next(SweepQueue<T>... queues) {
+    for (; ; ) {
+      int minIdx = 0;
+      for (int i = 1; i < queues.length; i++) {
+        if (queues[minIdx].queue.isEmpty() || (!queues[i].queue.isEmpty() && compare(queues[i], queues[minIdx]) < 0)) {
+          minIdx = i;
+        }
+      }
+
+      SweepQueue<T> q = queues[minIdx];
+      if (q.queue.isEmpty() || q.queue.peek().type == EventType.OPEN) {
+        return minIdx;
+      } else {
+        q.next();
+      }
+    }
+  }
+
+  public Event<T> next() {
+    Event<T> e = queue.poll();
+    if (e == null) {
       return null;
     }
 
-    Event<T> e = queue.poll();
-    while (e.type == EventType.CLOSED) {
+    if (e.type == EventType.CLOSED) {
       set.remove(e.value);
-      if (queue.isEmpty()) {
-        return null;
-      }
-      e = queue.poll();
+    } else {
+      set.add(e.value);
     }
+    return e;
+  }
 
-    set.add(e.value);
-    return e.value;
+  public T take() {
+    while (!queue.isEmpty()) {
+      Event<T> e = next();
+      if (e.type == EventType.OPEN) {
+        return e.value;
+      }
+    }
+    return null;
   }
 
   public ISet<T> active() {

@@ -1,5 +1,7 @@
 package io.lacuna.artifex;
 
+import io.lacuna.bifurcan.LinearList;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,6 +74,20 @@ public class Box2 extends Box<Vec2, Box2> {
     curves.add(LineSegment2.from(d, a));
 
     return new Path2(curves);
+  }
+
+  public Region2 region() {
+    List<Curve2> curves = new ArrayList<>();
+    Vec2 a = new Vec2(lx, ly);
+    Vec2 b = new Vec2(ux, ly);
+    Vec2 c = new Vec2(ux, uy);
+    Vec2 d = new Vec2(lx, uy);
+    curves.add(LineSegment2.from(a, b));
+    curves.add(LineSegment2.from(b, c));
+    curves.add(LineSegment2.from(c, d));
+    curves.add(LineSegment2.from(d, a));
+
+    return Region2.of(new Region2.Ring(curves));
   }
 
   @Override
