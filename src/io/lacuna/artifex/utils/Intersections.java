@@ -6,22 +6,25 @@ import io.lacuna.artifex.Vec2;
 import io.lacuna.bifurcan.LinearList;
 
 import static io.lacuna.artifex.Box.box;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
 
 /**
  * @author ztellman
  */
 public class Intersections {
 
+  // in parametric space, how close can two intersection points be before they're treated as a single point
+  public static final double INTERSECTION_EPSILON = 1e-10;
+
   private static class CurveInterval {
     public final Curve2 c;
-    public final double tLo, tHi, tEpsilon;
+    public final double tLo, tHi;
     public final Vec2 pLo, pHi;
 
-    public CurveInterval(Curve2 c, double tLo, double tHi, double tEpsilon, Vec2 pLo, Vec2 pHi) {
+    public CurveInterval(Curve2 c, double tLo, double tHi, Vec2 pLo, Vec2 pHi) {
       this.c = c;
       this.tLo = tLo;
       this.tHi = tHi;
-      this.tEpsilon = tEpsilon;
       this.pLo = pLo;
       this.pHi = pHi;
     }
@@ -30,7 +33,6 @@ public class Intersections {
       this.c = c;
       this.tLo = 0;
       this.tHi = 1;
-      this.tEpsilon = 1;
       this.pLo = c.start();
       this.pHi = c.end();
     }
@@ -40,18 +42,13 @@ public class Intersections {
       if (ts.length == 0) {
         return new CurveInterval[]{new CurveInterval(c)};
       } else {
-        double tEpsilon = 1;
-        for (int i = 0; i < ts.length - 1; i++) {
-          tEpsilon = Math.min(tEpsilon, ts[i + 1] - ts[i]);
-        }
-
         CurveInterval[] is = new CurveInterval[ts.length + 1];
         for (int i = 0; i < is.length; i++) {
           double lo = i == 0 ? 0 : ts[i - 1];
           double hi = i == is.length - 1 ? 1 : ts[i];
           Vec2 pLo = lo == 0 ? c.start() : is[i - 1].pHi;
           Vec2 pHi = hi == 1 ? c.end() : c.position(hi);
-          is[i] = new CurveInterval(c, lo, hi, tEpsilon, pLo, pHi);
+          is[i] = new CurveInterval(c, lo, hi, pLo, pHi);
         }
 
         return is;
@@ -69,17 +66,17 @@ public class Intersections {
       return (tLo + tHi) / 2;
     }
 
-    public boolean intersects(CurveInterval c) {
+    public boolean intersects(CurveInterval c, double epsilon) {
       // TODO avoid allocation here
-      return box(pLo, pHi).intersects(box(c.pLo, c.pHi));
+      return box(pLo, pHi).expand(epsilon).intersects(box(c.pLo, c.pHi));
     }
 
     public CurveInterval[] split() {
       double tMid = (tLo + tHi) / 2;
       Vec2 pMid = c.position(tMid);
       return new CurveInterval[]{
-        new CurveInterval(c, tLo, tMid, tEpsilon, pLo, pMid),
-        new CurveInterval(c, tMid, tHi, tEpsilon, pMid, pHi)};
+        new CurveInterval(c, tLo, tMid, pLo, pMid),
+        new CurveInterval(c, tMid, tHi, pMid, pHi)};
     }
 
     public Vec2 dir(double t) {
@@ -95,6 +92,16 @@ public class Intersections {
     }
   }
 
+  public static double round(double t, double epsilon) {
+    if (t < epsilon) {
+      return 0;
+    } else if (t + epsilon > 1) {
+      return 1;
+    } else {
+      return t;
+    }
+  }
+
   public static double[] collinearIntersection(Curve2 a, Curve2 b) {
     DoubleAccumulator acc = new DoubleAccumulator();
 
@@ -104,15 +111,15 @@ public class Intersections {
       // a overhangs the start of b
       if (tb <= 0) {
         double s = a.nearestPoint(b.start());
-        if (0 <= s && s <= 1) {
-          acc.add(s, 0);
+        if (Scalars.inside(-EPSILON, s, 1 + EPSILON)) {
+          acc.add(round(s, EPSILON), 0);
         }
 
         // a overhangs the end of b
       } else if (tb >= 1) {
         double s = a.nearestPoint(b.end());
-        if (0 <= s && s <= 1) {
-          acc.add(s, 1);
+        if (Scalars.inside(-EPSILON, s, 1 + EPSILON)) {
+          acc.add(round(s, EPSILON), 1);
         }
 
         // a is contained in b
@@ -125,6 +132,8 @@ public class Intersections {
       acc.pop(2);
     }
 
+
+
     return acc.toArray();
   }
 
@@ -134,27 +143,20 @@ public class Intersections {
 
     // is this a duplicate match
     int len = acc.size();
-    if (len > 0
-      && Scalars.equals(aMid, acc.get(len - 2), a.tEpsilon)
-      && Scalars.equals(bMid, acc.get(len - 1), b.tEpsilon)) {
-
+    if (len > 0 &&
+      (Scalars.equals(aMid, acc.get(len - 2), INTERSECTION_EPSILON)
+        || Scalars.equals(bMid, acc.get(len - 1), INTERSECTION_EPSILON))) {
       acc.set(len - 2, preferred(acc.get(len - 2), aMid));
       acc.set(len - 1, preferred(acc.get(len - 1), bMid));
       return false;
     }
 
-    // if the curves share a tangent at the first point of intersection, they're collinear
-    if (acc.size() == 0) {
-      Vec2 aDir = a.dir(aMid).norm();
-      Vec2 bDir = b.dir(bMid).norm();
-
-      if (Vec.equals(aDir, bDir, epsilon) || Vec.equals(aDir, bDir.negate(), epsilon)) {
-        double[] ts = collinearIntersection(a.c, b.c);
-        acc.add(ts[0], ts[1]);
-        acc.add(ts[2], ts[3]);
-
-        return true;
-      }
+    // if we've found more than two intersection points, we must be collinear
+    // TODO there must be a more elegant way to figure this out which is also robust
+    if (acc.size() == 4) {
+      acc.clear();
+      acc.add(collinearIntersection(a.c, b.c));
+      return true;
     }
 
     acc.add(aMid, bMid);
@@ -168,6 +170,7 @@ public class Intersections {
     stack.addLast(a).addLast(b);
 
     while (stack.size() > 0) {
+
       b = stack.popLast();
       a = stack.popLast();
 
@@ -181,7 +184,7 @@ public class Intersections {
 
         for (int i = 0; i < as.length; i++) {
           for (int j = 0; j < bs.length; j++) {
-            if (as[i].intersects(bs[j])) {
+            if (as[i].intersects(bs[j], epsilon)) {
               stack.addLast(as[i]).addLast(bs[j]);
             }
           }
@@ -194,7 +197,7 @@ public class Intersections {
 
   public static double[] intersections(Curve2 a, Curve2 b, double epsilon) {
 
-    if (!a.bounds().intersects(b.bounds())) {
+    if (!a.bounds().expand(epsilon).intersects(b.bounds())) {
       return new double[0];
     }
 
@@ -206,7 +209,7 @@ public class Intersections {
       for (int j = 0; j < bs.length; j++) {
         CurveInterval ai = as[i];
         CurveInterval bi = bs[j];
-        if (ai.intersects(bi)) {
+        if (ai.intersects(bi, epsilon)) {
           if (intersections(ai, bi, accumulator, epsilon)) {
             return accumulator.toArray();
           }

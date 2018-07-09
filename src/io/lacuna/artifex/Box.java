@@ -1,8 +1,11 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Scalars;
+
 import java.awt.geom.Rectangle2D;
 import java.util.function.DoublePredicate;
 
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static io.lacuna.artifex.utils.Scalars.max;
 
 /**
@@ -77,11 +80,14 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
     if (isEmpty() || b.isEmpty()) {
       return false;
     }
-    return b.upper().sub(lower()).every(NOT_NEGATIVE) && upper().sub(b.lower()).every(NOT_NEGATIVE);
+
+    return b.upper().sub(lower()).every(NOT_NEGATIVE)
+      && upper().sub(b.lower()).every(NOT_NEGATIVE);
   }
 
   public boolean contains(T v) {
-    return v.sub(lower()).every(NOT_NEGATIVE) && upper().sub(v).every(NOT_NEGATIVE);
+    return v.sub(lower()).every(NOT_NEGATIVE)
+      && upper().sub(v).every(NOT_NEGATIVE);
   }
 
   public T size() {

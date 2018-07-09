@@ -5,8 +5,8 @@ import io.lacuna.bifurcan.LinearSet;
 
 import java.util.*;
 
-import static java.lang.Math.max;
-import static java.lang.Math.min;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
+import static java.lang.Math.*;
 
 /**
  * A quasi-implementation of the plane sweep algorithm.  This will only compare edges which overlap on the x-axis, but
@@ -18,22 +18,24 @@ import static java.lang.Math.min;
  */
 public class SweepQueue<T> {
 
-  private enum EventType {
-    OPEN,
-    CLOSED
-  }
+  public static final int OPEN = 0, CLOSED = 1;
 
   public static class Event<T> {
 
-    static final Comparator<Event> COMPARATOR = Comparator
-      .comparingDouble((Event e) -> e.key)
-      .thenComparingInt(e -> e.type == EventType.OPEN ? 0 : 1);
+    static final Comparator<Event> COMPARATOR = (a, b) -> {
+      double diff = a.key - b.key;
+      if (diff == 0) {
+        return a.type - b.type;
+      } else {
+        return (int) copySign(1.0, diff);
+      }
+    };
 
     public final double key;
     public final T value;
-    public final EventType type;
+    public final int type;
 
-    Event(double key, T value, EventType type) {
+    Event(double key, T value, int type) {
       this.key = key;
       this.value = value;
       this.type = type;
@@ -44,10 +46,8 @@ public class SweepQueue<T> {
   private final ISet<T> set = new LinearSet<>();
 
   public void add(T value, double a, double b) {
-    if (!set.contains(value)) {
-      queue.add(new Event<>(min(a, b), value, EventType.OPEN));
-      queue.add(new Event<>(max(a, b), value, EventType.CLOSED));
-    }
+    queue.add(new Event<>(min(a, b) - EPSILON, value, OPEN));
+    queue.add(new Event<>(max(a, b) + EPSILON, value, CLOSED));
   }
 
   public double peek() {
@@ -68,7 +68,7 @@ public class SweepQueue<T> {
       }
 
       SweepQueue<T> q = queues[minIdx];
-      if (q.queue.isEmpty() || q.queue.peek().type == EventType.OPEN) {
+      if (q.queue.isEmpty() || q.queue.peek().type == OPEN) {
         return minIdx;
       } else {
         q.next();
@@ -82,7 +82,7 @@ public class SweepQueue<T> {
       return null;
     }
 
-    if (e.type == EventType.CLOSED) {
+    if (e.type == CLOSED) {
       set.remove(e.value);
     } else {
       set.add(e.value);
@@ -93,7 +93,7 @@ public class SweepQueue<T> {
   public T take() {
     while (!queue.isEmpty()) {
       Event<T> e = next();
-      if (e.type == EventType.OPEN) {
+      if (e.type == OPEN) {
         return e.value;
       }
     }

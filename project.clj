@@ -6,10 +6,12 @@
   :java-source-paths ["src"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [criterium "0.4.3"]
-                                  [virgil "0.1.8"]]}}
+                                  [virgil "0.1.8"]
+                                  [org.clojure/test.check "0.9.0"]]}}
   :jvm-opts ^:replace ["-server"
                        "-Xmx1g"
                        "-ea:io.lacuna..."
+                       "-XX:-OmitStackTraceInFastThrow"
                        #_"-XX:+UnlockDiagnosticVMOptions"
                        #_"-XX:+PrintAssembly"
                        #_"-XX:CompileCommand=print,io.lacuna.artifex.Vec::equals"

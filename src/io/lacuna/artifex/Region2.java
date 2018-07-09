@@ -1,21 +1,66 @@
 package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.EdgeList;
-import io.lacuna.artifex.utils.Scalars;
 import io.lacuna.artifex.utils.regions.Hulls;
+import io.lacuna.artifex.utils.regions.Monotonic;
 import io.lacuna.artifex.utils.regions.Operations;
-import io.lacuna.bifurcan.*;
+import io.lacuna.artifex.utils.regions.Triangles;
+import io.lacuna.bifurcan.IList;
+import io.lacuna.bifurcan.LinearList;
+import io.lacuna.bifurcan.Lists;
 
 import java.util.Arrays;
 import java.util.Comparator;
 
+import static io.lacuna.artifex.Curve2.SPLIT_EPSILON;
 import static io.lacuna.artifex.Vec.vec;
-import static io.lacuna.bifurcan.utils.Iterators.toStream;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
+import static java.lang.Math.abs;
 
 /**
  * @author ztellman
  */
 public class Region2 {
+
+  public enum Location {
+    INSIDE,
+    OUTSIDE,
+    EDGE
+  }
+
+  public static class Interior {
+    public final Vec2 a, b, c;
+
+    public Interior(Vec2 a, Vec2 b, Vec2 c) {
+      this.a = a;
+      this.b = b;
+      this.c = c;
+    }
+  }
+
+  public static class Exterior {
+    public final Curve2 edge;
+    public final Vec2 vertex;
+
+    public Exterior(Curve2 edge, Vec2 vertex) {
+      this.edge = edge;
+      this.vertex = vertex;
+    }
+
+    public boolean isConvex() {
+      return vertex == null;
+    }
+  }
+
+  public static class Triangulation {
+    public final Exterior[][] exteriors;
+    public final Interior[][] interiors;
+
+    public Triangulation(Exterior[][] exteriors, Interior[][] interiors) {
+      this.exteriors = exteriors;
+      this.interiors = interiors;
+    }
+  }
 
   public static class Ring {
 
@@ -33,6 +78,7 @@ public class Region2 {
 
     public Ring(Iterable<Curve2> cs) {
 
+      // TODO: dedupe collinear adjacent lines
       Box2 bounds = Box2.EMPTY;
       double signedArea = 0;
       LinearList<Curve2> list = new LinearList<>();
@@ -48,7 +94,7 @@ public class Region2 {
       }
 
       this.isClockwise = signedArea < 0;
-      this.area = Math.abs(signedArea);
+      this.area = abs(signedArea);
       this.bounds = bounds;
 
       curves = list.toArray(Curve2[]::new);
@@ -71,23 +117,57 @@ public class Region2 {
         area);
     }
 
-    public boolean contains(Vec2 p) {
-      if (!bounds.contains(p)) {
-        return false;
+    public Location test(Vec2 p) {
+      if (!bounds.expand(EPSILON).contains(p)) {
+        return Location.OUTSIDE;
       }
 
       LineSegment2 ray = LineSegment2.from(p, vec(bounds.ux + 1, p.y));
       int count = 0;
-      for (Curve2 c : curves) {
-        Box2 bounds = c.bounds();
-        if (bounds.contains(p)) {
-          count += c.intersections(ray).length / 2;
-        } else if (bounds.lx > p.x) {
-          count += Scalars.inside(bounds.ly, p.y, bounds.uy) ? 1 : 0;
+
+      // find effective predecessor of the first curve, ignoring all the flat lines
+      Curve2 prev = null;
+      for (int i = curves.length - 1; i >= 0; i--) {
+        Curve2 c = curves[i];
+        if (c.start().y != c.end().y) {
+          prev = c;
+          break;
         }
       }
 
-      return count % 2 == 1;
+      for (Curve2 curr : curves) {
+        double[] ts = curr.intersections(ray);
+
+        // if the ray starts on an edge, short-circuit
+        for (int i = 1; i < ts.length; i += 2) {
+          if (ts[i] == 0) {
+            return Location.EDGE;
+          }
+        }
+
+        if (ts.length == 2 && ts[0] == 0) {
+          // if it's a '\/' or '/\' intersection at the vertex, undo the other time we've counted it
+          if (Math.signum(prev.start().y - prev.end().y) != Math.signum(curr.end().y - curr.start().y)) {
+            count++;
+          }
+
+          // if we're collinear, pretend like our neighbors are collapsed together
+        } else if (ts.length > 2
+          && abs(curr.start().y - curr.end().y) < SPLIT_EPSILON
+          && abs(curr.direction(ts[0]).y) < SPLIT_EPSILON) {
+
+        } else {
+
+          for (int i = 0; i < ts.length; i += 2) {
+            if (ts[i] < 1) {
+              count++;
+            }
+          }
+          prev = curr;
+        }
+      }
+
+      return count % 2 == 1 ? Location.INSIDE : Location.OUTSIDE;
     }
 
     public Ring transform(Matrix3 m) {
@@ -109,10 +189,16 @@ public class Region2 {
       .reduce(Box2.EMPTY, Box2::union);
   }
 
+  /**
+   * @return a unit square from [0, 0] to [1, 1]
+   */
   public static Region2 square() {
     return Box.box(vec(0, 0), vec(1, 1)).region();
   }
 
+  /**
+   * @return a unit circle with radius of 1, centered at [0, 0]
+   */
   public static Region2 circle() {
     // adapted from http://spencermortensen.com/articles/bezier-circle/
     double c = 0.551915024494;
@@ -138,17 +224,24 @@ public class Region2 {
     return bounds;
   }
 
-  public boolean contains(Vec2 p) {
+  public Location test(Vec2 p) {
     for (Ring r : rings) {
-      if (r.contains(p)) {
-        return !r.isClockwise;
+      Location loc = r.test(p);
+      if (loc == Location.INSIDE) {
+        return r.isClockwise ? Location.OUTSIDE : Location.INSIDE;
+      } else if (loc == Location.EDGE) {
+        return Location.EDGE;
       }
     }
 
-    return false;
+    return Location.OUTSIDE;
   }
 
-  ///
+  public boolean contains(Vec2 p) {
+    return test(p) != Location.OUTSIDE;
+  }
+
+  /// transforms and set operations
 
   public Region2 transform(Matrix3 m) {
     return new Region2(() -> rings.stream().map(r -> r.transform(m)).iterator());
@@ -164,6 +257,42 @@ public class Region2 {
 
   public Region2 difference(Region2 region) {
     return new Region2(Operations.difference(rings, region.rings));
+  }
+
+  /// triangulation
+
+  public Ring[] triangulated() {
+    EdgeList l = new EdgeList();
+    for (Ring r : rings) {
+      for (Curve2 c : r.curves) {
+        l.add(c, Hulls.INSIDE, Hulls.OUTSIDE);
+      }
+    }
+
+    Hulls.create(l);
+    Monotonic.monotonize(l);
+    Triangles.triangulate(l);
+
+    return l.faces().stream()
+      .map(l::face)
+      .map(LinearList::from)
+      .map(edges -> Ring.of(edges.stream().map(e -> e.curve).toArray(Curve2[]::new)))
+      .toArray(Ring[]::new);
+  }
+
+  public Fan2[] fans() {
+    EdgeList l = new EdgeList();
+    for (Ring r : rings) {
+      for (Curve2 c : r.curves) {
+        l.add(c, Hulls.INSIDE, Hulls.OUTSIDE);
+      }
+    }
+
+    Hulls.create(l);
+    Monotonic.monotonize(l);
+    Triangles.triangulate(l);
+
+    return Triangles.fans(l).toArray(Fan2[]::new);
   }
 
 }

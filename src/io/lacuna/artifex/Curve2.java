@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static io.lacuna.artifex.Box.box;
+import static io.lacuna.artifex.Vec2.angleBetween;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
 
 /**
@@ -14,7 +15,7 @@ import static io.lacuna.artifex.utils.Scalars.EPSILON;
  */
 public interface Curve2 {
 
-  double SPLIT_EPSILON = 1e-9;
+  double SPLIT_EPSILON = 1e-10;
 
   /**
    * @param t a value within [0,1]
@@ -55,8 +56,11 @@ public interface Curve2 {
    * @return an array of curves, split at the specified points.
    */
   default Curve2[] split(double[] ts) {
-    Arrays.sort(ts);
+    if (ts.length == 1) {
+      return split(ts[0]);
+    }
 
+    Arrays.sort(ts);
     int len = 0;
     double prev = 0;
     for (int i = 0; i < ts.length; i++) {
@@ -113,11 +117,11 @@ public interface Curve2 {
 
   double[] inflections();
 
-  default boolean collinear(Curve2 c) {
-    double[] ts = intersections(c);
-    Vec2 u = direction(ts[0]).norm();
-    Vec2 v = c.direction(ts[1]).norm();
-    return Vec.equals(u, v, EPSILON) || Vec.equals(u, v.negate(), EPSILON);
+  /**
+   * @returns whether the curve is convex, assuming that the interior is always to the left of the curve
+   */
+  default boolean isConvex() {
+    return -angleBetween(direction(0).negate(), direction(1)) < Math.PI;
   }
 
   default double[] intersections(Curve2 c, double epsilon) {
@@ -125,6 +129,6 @@ public interface Curve2 {
   }
 
   default double[] intersections(Curve2 c) {
-    return intersections(c, EPSILON);
+    return intersections(c, SPLIT_EPSILON);
   }
 }

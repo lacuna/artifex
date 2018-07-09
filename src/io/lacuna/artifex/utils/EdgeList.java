@@ -54,18 +54,29 @@ public class EdgeList {
       Vec2 a = prev.start();
       Vec2 b = start();
       Vec2 c = end();
-      Vec2 in = a.sub(b).norm();
-      Vec2 ray = p.sub(b).norm();
-      Vec2 out = c.sub(b).norm();
 
-      if (Vec.equals(ray, in, EPSILON) || Vec.equals(ray, out, EPSILON)) {
+      /*Vec2 in = a.sub(b).norm();
+      Vec2 ray = p.sub(b).norm();
+      Vec2 out = c.sub(b).norm();*/
+
+      Vec2 in = prev.curve.direction(1).negate().norm();
+      Vec2 ray = d.norm();
+      Vec2 out = curve.direction(0).norm();
+
+      if (Vec.equals(in, ray, EPSILON) || Vec.equals(out, ray, EPSILON)) {
+        in = a.sub(b).norm();
+        ray = p.sub(b).norm();
+        out = c.sub(b).norm();
+
+        /*in = prev.curve.direction(1).negate().norm();
         ray = d.norm();
+        out = curve.direction(0).norm();*/
       }
 
       double t0 = -angleBetween(in, ray);
       double t1 = -angleBetween(in, out);
 
-      return t0 <= t1;
+      return t0 != 0 && t0 <= t1;
     }
 
     public void link(HalfEdge e) {
@@ -131,17 +142,15 @@ public class EdgeList {
     return curr;
   }
 
-  public IMap<Ring, Integer> boundaries(IntPredicate flagPredicate) {
-    IMap<Ring, Integer> result = new LinearMap<>();
+  public IList<Ring> boundaries(IntPredicate flagPredicate) {
+    IList<Ring> result = new LinearList<>();
     for (HalfEdge e : faces()) {
       if (flagPredicate.test(e.flag)) {
         IList<Curve2> cs = new LinearList<>();
-        int flag = 0;
         for (HalfEdge edge : face(e)) {
           cs.addFirst(edge.twin.curve);
-          flag |= edge.twin.flag;
         }
-        result.put(new Ring(cs), flag);
+        result.addLast(new Ring(cs));
       }
     }
     return result;
@@ -157,8 +166,12 @@ public class EdgeList {
         HalfEdge e = pseudoFaces.nth(i);
         int flag = e.flag;
 
+        int j = 0;
         HalfEdge curr = e.next;
         while (curr != e) {
+          if (j++ > 1_000) {
+            throw new IllegalStateException(e.toString());
+          }
           curr.flag = flag = flag | curr.flag;
           pseudoFaces.remove(curr);
           curr = curr.next;
@@ -205,6 +218,15 @@ public class EdgeList {
 
   /// modifiers
 
+  private boolean checkForNearMiss(Vec2 v) {
+    Vec2 match = vertices.keys().stream().filter(u -> Vec.equals(u, v, EPSILON)).findAny().orElse(null);
+    if (match != null) {
+      System.out.println(v + " " + match + " " + v.sub(match).length());
+      return true;
+    }
+    return false;
+  }
+
   public HalfEdge add(Vec2 a, Vec2 b, int left, int right) {
     return add(LineSegment2.from(a, b), left, right);
   }
@@ -232,11 +254,19 @@ public class EdgeList {
           src = src.twin.next;
         }
 
+        // it's an equivalent edge, just update the flags and return
+        if (src.end().equals(c.end()) && Vec.equals(src.curve.direction(0), c.direction(0), EPSILON)) {
+          src.flag |= left;
+          src.twin.flag |= right;
+          return src;
+        }
+
         src.prev.link(e);
         e.twin.link(src);
         registerFace(e);
       }
     } else {
+      assert !checkForNearMiss(start);
       vertices.put(start, e);
       registerFace(e);
     }
@@ -262,6 +292,7 @@ public class EdgeList {
         registerFace(e.twin);
       }
     } else {
+      assert !checkForNearMiss(end);
       vertices.put(end, e.twin);
       registerFace(e);
     }
@@ -272,7 +303,17 @@ public class EdgeList {
   public void removeFaces(IntPredicate toRemove, int outside) {
     for (HalfEdge e : faces()) {
       if (e.flag != outside && toRemove.test(e.flag)) {
-        removeFace(e, outside);
+        removeFace(e, n -> n == outside, outside);
+      }
+    }
+  }
+
+  public void removeFace(HalfEdge e, IntPredicate isOutside, int flag) {
+    for (HalfEdge edge : LinearList.from(face(e))) {
+      if (isOutside.test(edge.twin.flag)) {
+        remove(edge);
+      } else {
+        edge.flag = flag;
       }
     }
   }
@@ -318,7 +359,8 @@ public class EdgeList {
     pseudoFaces.remove(e).remove(e.twin);
     if (prev != null) {
       registerFace(prev);
-    } else if (next != null) {
+    }
+    if (next != null) {
       registerFace(next);
     }
   }
@@ -340,17 +382,27 @@ public class EdgeList {
   /// helpers
 
   private void registerFace(HalfEdge e) {
+
     pseudoFaces.add(e).add(e.twin);
     invalidated = true;
+
   }
 
-  private void removeFace(HalfEdge e, int outside) {
-    for (HalfEdge edge : LinearList.from(face(e))) {
-      if (edge.twin.flag == outside) {
-        remove(edge);
-      } else {
-        edge.flag = outside;
+  ///
+
+
+  @Override
+  public String toString() {
+    StringBuilder b = new StringBuilder();
+    for (HalfEdge e : faces()) {
+      Ring r = ring(e);
+      b.append("RING: " + e.flag + "\n");
+      for (Curve2 c : r.curves) {
+        b.append("  " + c + "\n");
       }
+      b.append("\n");
     }
+
+    return b.toString();
   }
 }

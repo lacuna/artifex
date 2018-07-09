@@ -4,6 +4,8 @@
    [criterium.core :as c])
   (:import
    [io.lacuna.artifex
+    Region2
+    Matrix3
     Vec2
     Vec3
     Vec4
@@ -22,3 +24,10 @@
       (.clamp a a b))
     (c/quick-bench
       (Vec/equals a b 0.5))))
+
+(deftest ^:benchmark benchmark-regions
+  (let [regions (->> (cycle [(Region2/circle) (Region2/square)])
+                  (take 1e3)
+                  (map #(.transform % (Matrix3/translate (rand) (rand)))))]
+    (c/quick-bench
+      (reduce #(.intersection ^Region2 %1 %2) regions))))

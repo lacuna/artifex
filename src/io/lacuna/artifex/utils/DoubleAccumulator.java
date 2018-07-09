@@ -16,6 +16,15 @@ public class DoubleAccumulator {
     this.values = values;
   }
 
+  public void add(double[] ns) {
+    while (index > this.values.length - ns.length) {
+      expand();
+    }
+
+    System.arraycopy(ns, 0, values, index, ns.length);
+    index += ns.length;
+  }
+
   public void add(double n) {
     if (index > this.values.length - 1) {
       expand();
@@ -35,6 +44,10 @@ public class DoubleAccumulator {
 
   public void pop(int num) {
     index -= num;
+  }
+
+  public void clear() {
+    index = 0;
   }
 
   public int size() {
@@ -57,5 +70,20 @@ public class DoubleAccumulator {
     double[] result = new double[index];
     arraycopy(values, 0, result, 0, index);
     return result;
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder b = new StringBuilder();
+    b.append("[");
+    for (int i = 0; i < index; i++) {
+      if (i != 0) {
+        b.append(", ");
+      }
+      b.append(values[i]);
+    }
+    b.append("]");
+
+    return b.toString();
   }
 }

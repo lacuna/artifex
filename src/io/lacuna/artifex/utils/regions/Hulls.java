@@ -22,10 +22,6 @@ public class Hulls {
 
   public static final int OUTSIDE = 0, INSIDE = 1, HULL = 2;
 
-  public static boolean isConvex(Curve2 c) {
-    return -angleBetween(c.direction(0).negate(), c.direction(1)) < Math.PI;
-  }
-
   public static Vec2 tangentIntersection(Curve2 c) {
     Vec2 pv = c.direction(0);
     Vec2 qv = c.direction(1).negate();
@@ -39,7 +35,7 @@ public class Hulls {
     return c.start().add(pv.mul(s));
   }
 
-  public static double hullArea(Curve2 curve) {
+  private static double hullArea(Curve2 curve) {
     if (curve instanceof LineSegment2) {
       return 0;
     }
@@ -50,17 +46,17 @@ public class Hulls {
     return Math.abs(((a.x - c.x) * (b.y - a.y)) - ((a.x - b.x) * (c.y - a.y))) / 2;
   }
 
-  public static LineSegment2 intersector(Curve2 c) {
+  private static LineSegment2 intersector(Curve2 c) {
     if (c instanceof LineSegment2) {
       return (LineSegment2) c;
-    } else if (isConvex(c)) {
+    } else if (c.isConvex()) {
       return LineSegment2.from(c.start(), c.end());
     } else {
       return LineSegment2.from(c.end(), tangentIntersection(c));
     }
   }
 
-  public static void add(SweepQueue<HalfEdge> queue, IMap<HalfEdge, LineSegment2> intersectors, HalfEdge e) {
+  private static void add(SweepQueue<HalfEdge> queue, IMap<HalfEdge, LineSegment2> intersectors, HalfEdge e) {
     LineSegment2 l = intersector(e.curve);
     intersectors.put(e, l);
     queue.add(e, l.start().x, l.end().x);
@@ -108,7 +104,7 @@ public class Hulls {
       }
 
       e.flag = HULL;
-      if (isConvex(c)) {
+      if (c.isConvex()) {
         edges.add(c.end(), c.start(), HULL, INSIDE);
       } else {
         Vec2 v = tangentIntersection(c);

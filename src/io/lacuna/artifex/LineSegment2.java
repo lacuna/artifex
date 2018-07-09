@@ -2,6 +2,7 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 import io.lacuna.artifex.utils.Intersections;
+import io.lacuna.artifex.utils.Scalars;
 
 import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
@@ -103,7 +104,7 @@ public class LineSegment2 implements Curve2 {
 
   @Override
   public Vec2[] subdivide(double error) {
-    return new Vec2[] {start(), end()};
+    return new Vec2[]{start(), end()};
   }
 
   @Override
@@ -119,17 +120,19 @@ public class LineSegment2 implements Curve2 {
       double d = cross(pv, qv);
       Vec2 psq = p.start().sub(q.start());
 
-      if (d == 0) {
-        return cross(psq, pv) == 0
+      if (inside(-epsilon, d, epsilon)) {
+        return inside(-epsilon, cross(psq, pv), epsilon)
           ? Intersections.collinearIntersection(p, q)
           : new double[0];
       }
 
       double s = cross(qv, psq) / d;
-      if (s >= 0 && s <= 1) {
+      if (inside(-epsilon, s, 1 + epsilon)) {
         double t = cross(pv, psq) / d;
-        if (t >= 0 && t <= 1) {
-          return new double[]{s, t};
+        if (inside(-epsilon, t, 1 + epsilon)) {
+          return new double[]{
+            Intersections.round(s, epsilon),
+            Intersections.round(t, epsilon)};
         }
       }
 
