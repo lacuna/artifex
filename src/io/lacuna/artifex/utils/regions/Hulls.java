@@ -1,7 +1,8 @@
 package io.lacuna.artifex.utils.regions;
 
 import io.lacuna.artifex.Curve2;
-import io.lacuna.artifex.LineSegment2;
+import io.lacuna.artifex.Curve2.Type;
+import io.lacuna.artifex.Line2;
 import io.lacuna.artifex.Vec2;
 import io.lacuna.artifex.utils.EdgeList;
 import io.lacuna.artifex.utils.EdgeList.HalfEdge;
@@ -9,7 +10,6 @@ import io.lacuna.artifex.utils.SweepQueue;
 import io.lacuna.bifurcan.IMap;
 import io.lacuna.bifurcan.LinearMap;
 
-import static io.lacuna.artifex.Vec2.angleBetween;
 import static io.lacuna.artifex.Vec2.cross;
 
 /**
@@ -36,7 +36,7 @@ public class Hulls {
   }
 
   private static double hullArea(Curve2 curve) {
-    if (curve instanceof LineSegment2) {
+    if (curve instanceof Line2) {
       return 0;
     }
 
@@ -46,24 +46,20 @@ public class Hulls {
     return Math.abs(((a.x - c.x) * (b.y - a.y)) - ((a.x - b.x) * (c.y - a.y))) / 2;
   }
 
-  private static LineSegment2 intersector(Curve2 c) {
-    if (c instanceof LineSegment2) {
-      return (LineSegment2) c;
-    } else if (c.isConvex()) {
-      return LineSegment2.from(c.start(), c.end());
-    } else {
-      return LineSegment2.from(c.end(), tangentIntersection(c));
-    }
+  private static Line2 intersector(Curve2 c) {
+    return c.type() == Type.CONCAVE
+      ? Line2.from(c.end(), tangentIntersection(c))
+      : Line2.from(c.start(), c.end());
   }
 
-  private static void add(SweepQueue<HalfEdge> queue, IMap<HalfEdge, LineSegment2> intersectors, HalfEdge e) {
-    LineSegment2 l = intersector(e.curve);
+  private static void add(SweepQueue<HalfEdge> queue, IMap<HalfEdge, Line2> intersectors, HalfEdge e) {
+    Line2 l = intersector(e.curve);
     intersectors.put(e, l);
     queue.add(e, l.start().x, l.end().x);
   }
 
   public static void create(EdgeList edges) {
-    IMap<HalfEdge, LineSegment2> intersectors = new LinearMap<>();
+    IMap<HalfEdge, Line2> intersectors = new LinearMap<>();
     SweepQueue<HalfEdge> queue = new SweepQueue<>();
     for (Vec2 v : edges.vertices()) {
       add(queue, intersectors, edges.edge(v, INSIDE));
@@ -71,14 +67,14 @@ public class Hulls {
 
     HalfEdge curr = queue.take();
     while (curr != null) {
-      LineSegment2 a = intersectors.get(curr, null);
+      Line2 a = intersectors.get(curr, null);
       if (a != null) {
         for (HalfEdge e : queue.active()) {
           if (e == curr || e == curr.next || e == curr.prev) {
             continue;
           }
 
-          LineSegment2 b = intersectors.get(e, null);
+          Line2 b = intersectors.get(e, null);
           if (b != null && a.intersections(b).length > 0) {
             HalfEdge toSplit = hullArea(e.curve) < hullArea(curr.curve) ? curr : e;
             HalfEdge split = edges.split(toSplit, 0.5);
@@ -99,12 +95,12 @@ public class Hulls {
 
     for (HalfEdge e : intersectors.keys()) {
       Curve2 c = e.curve;
-      if (c instanceof LineSegment2) {
+      if (c instanceof Line2) {
         continue;
       }
 
       e.flag = HULL;
-      if (c.isConvex()) {
+      if (c.type() == Type.CONVEX) {
         edges.add(c.end(), c.start(), HULL, INSIDE);
       } else {
         Vec2 v = tangentIntersection(c);

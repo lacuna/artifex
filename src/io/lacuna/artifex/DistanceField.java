@@ -1,19 +1,17 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.Region2.Ring;
 import io.lacuna.bifurcan.IMap;
 import io.lacuna.bifurcan.LinearMap;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
-import static io.lacuna.artifex.Vec.dot;
-import static io.lacuna.artifex.Vec.lerp;
-import static io.lacuna.artifex.Vec.vec;
+import static io.lacuna.artifex.Vec.*;
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.utils.Scalars.clamp;
 import static java.lang.Math.*;
-import static java.lang.Math.abs;
 
 /**
  * @author ztellman
@@ -113,13 +111,13 @@ public class DistanceField {
     Box2 fieldBounds = shapeBounds.expand(pixelSize.mul(padding));
 
     // if our point isn't outside the curves, we've got the winding direction wrong
-    /*if (insideRings(rings, fieldBounds.lower())) {
+    /*if (insideRing2s(rings, fieldBounds.lower())) {
       rings = rings.stream().map(Path2::reverse).collect(Collectors.toList());
     }*/
 
     IMap<Curve2, Byte> curveMap = new LinearMap<>();
 
-    for (Ring r : region.rings()) {
+    for (Ring2 r : region.rings()) {
       curveMap = curveMap.union(edgeColors(r, cornerThreshold));
     }
 
@@ -233,7 +231,7 @@ public class DistanceField {
     return dot(ta, tb) <= 0 || abs(cross(ta, tb)) > crossThreshold;
   }
 
-  private static List<Integer> cornerIndices(Ring ring, double angleThreshold) {
+  private static List<Integer> cornerIndices(Ring2 ring, double angleThreshold) {
     List<Integer> corners = new ArrayList<>();
     Curve2[] curves = ring.curves;
     double crossThreshold = sin(angleThreshold);
@@ -255,7 +253,7 @@ public class DistanceField {
   }
 
   // TODO: how many of these cases are avoided by splitting on inflections?
-  private static IMap<Curve2, Byte> edgeColors(Ring ring, double angleThreshold) {
+  private static IMap<Curve2, Byte> edgeColors(Ring2 ring, double angleThreshold) {
     IMap<Curve2, Byte> edgeColors = new LinearMap<>();
     List<Integer> corners = cornerIndices(ring, angleThreshold);
     Curve2[] curves = ring.curves;
@@ -374,7 +372,7 @@ public class DistanceField {
     }
   }
 
-  private static boolean insideRings(List<Path2> rings, Vec2 point) {
+  private static boolean insideRing2s(List<Path2> rings, Vec2 point) {
     return rings.stream()
       .flatMap(rs -> Arrays.stream(rs.curves()))
       .map(c -> new SignedDistance(c, point))

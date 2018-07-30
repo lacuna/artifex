@@ -8,7 +8,7 @@
 
 (defn approx-contains? [s x]
   (->> s
-    (filter #(< (Math/abs (- x %)) Scalars/EPSILON))
+    (filter #(Scalars/equals x % Scalars/EPSILON))
     empty?
     not))
 
@@ -20,7 +20,7 @@
 (deftest test-linear
   (are [expected a b]
       (approx= (set (map double expected))
-        (when-let [r (Equations/solveLinear a b)]
+        (when-let [r (Equations/solveLinear a b 1e-14)]
           (set r)))
 
     []   0 1
@@ -30,7 +30,7 @@
 (deftest test-quadratic
   (are [expected a b c]
       (approx= (set (map double expected))
-        (set (Equations/solveQuadratic a b c)))
+        (set (Equations/solveQuadratic a b c 1e-14)))
 
     [0]                           1 0 0
     [1 -1]                        1 0 -1
@@ -43,8 +43,20 @@
 (deftest test-cubic
   (are [expected a b c d]
       (approx= (set (map double expected))
-        (set (Equations/solveCubic a b c d)))
+        (set (Equations/solveCubic a b c d 1e-14)))
 
     [0
      (/ (- 1 (Math/sqrt 5)) 2)
      (/ (+ 1 (Math/sqrt 5)) 2)] -1 1 1 0))
+
+(deftest test-cubic-random
+  (dotimes [_ 1e6]
+    (let [[a b c d] (repeatedly 4 #(* 10 (rand)))
+          roots (Equations/solveCubic a b c d 1e-14)]
+      (doseq [root roots]
+        (let [result (+ (* a root root root)
+                       (* b root root)
+                       (* c root)
+                       d)]
+          (if (<= 0 root 1)
+            (is (Scalars/equals result 0 1e-14) [(count roots) result])))))))

@@ -58,17 +58,17 @@ public class DoubleAccumulator {
     return values[index];
   }
 
+  public double last() {
+    return values[index - 1];
+  }
+
   public void set(int index, double n) {
     values[index] = n;
   }
 
   public double[] toArray() {
-    if (index == values.length) {
-      return values;
-    }
-
-    double[] result = new double[index];
-    arraycopy(values, 0, result, 0, index);
+    double[] result = new double[size()];
+    arraycopy(values, 0, result, 0, size());
     return result;
   }
 

@@ -1,18 +1,14 @@
 package io.lacuna.artifex.utils;
 
-import io.lacuna.artifex.Curve2;
-import io.lacuna.artifex.LineSegment2;
-import io.lacuna.artifex.Region2.Ring;
-import io.lacuna.artifex.Vec;
-import io.lacuna.artifex.Vec2;
+import io.lacuna.artifex.*;
 import io.lacuna.bifurcan.*;
 
 import java.util.Iterator;
 import java.util.function.IntPredicate;
-import java.util.stream.Collectors;
 
 import static io.lacuna.artifex.Vec2.angleBetween;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
+import static java.lang.Math.abs;
 
 /**
  * An implementation of a doubly-connected edge list.  Since this is an inherently mutable data structure, it is
@@ -21,6 +17,48 @@ import static io.lacuna.artifex.utils.Scalars.EPSILON;
  * @author ztellman
  */
 public class EdgeList {
+
+  private enum Orientation {
+    LEFT,
+    RIGHT,
+    COLLINEAR
+  }
+
+  private enum Visibility {
+    INSIDE,
+    OUTSIDE,
+    COLLINEAR
+  }
+
+  private static Orientation orientation(Curve2 a, Curve2 b) {
+    Vec2 origin = a.start();
+
+    double t = 1;
+    while (t >= 0.5) {
+      Vec2 pa = a.position(t);
+      Vec2 pb = b.position(t);
+
+      if (pa.sub(origin).lengthSquared() < pb.sub(origin).lengthSquared()) {
+        pb = b.position(Scalars.clamp(0, b.nearestPoint(pa), 1));
+      } else {
+        pa = a.position(Scalars.clamp(0, a.nearestPoint(pb), 1));
+      }
+
+      Vec2 da = pa.sub(origin).norm();
+      Vec2 db = pb.sub(origin).norm();
+      double cross = Vec2.cross(da, db);
+
+      if (cross < -EPSILON) {
+        return Orientation.LEFT;
+      } else if (cross > EPSILON) {
+        return Orientation.RIGHT;
+      }
+
+      t /= 2;
+    }
+
+    return Orientation.COLLINEAR;
+  }
 
   public static class HalfEdge {
     public HalfEdge prev, next, twin;
@@ -40,43 +78,40 @@ public class EdgeList {
       this.twin = new HalfEdge(curve.reverse(), this, right);
     }
 
-    public double interiorAngle() {
-      Vec2 in = prev.curve.direction(1).negate();
-      Vec2 out = curve.direction(0);
-      return -angleBetween(in, out);
+    public Visibility visible(Curve2 c) {
+      // the precision of angleBetween is a little coarse, so give ourselves some room
+      double epsilon = 1e-6;
+
+      double t0 = -angleBetween(prev.twin.curve.direction(0), c.direction(0));
+      double t1 = interiorAngle();
+
+      if (t0 < t1 && abs(t0) < epsilon) {
+        switch (orientation(prev.twin.curve, c)) {
+          case LEFT:
+            return Visibility.INSIDE;
+          default:
+            return Visibility.OUTSIDE;
+        }
+      } else if (abs(t1 - t0) < epsilon) {
+        switch (orientation(curve, c)) {
+          case RIGHT:
+            return t0 == 0 ? Visibility.OUTSIDE : Visibility.INSIDE;
+          case COLLINEAR:
+            return Visibility.COLLINEAR;
+          default:
+            return Visibility.OUTSIDE;
+        }
+      }
+
+      return t0 < t1 ? Visibility.INSIDE : Visibility.OUTSIDE;
     }
 
-    public boolean visible(Vec2 p, Vec2 d) {
-      if (flag == 0) {
-        return false;
+    public double interiorAngle() {
+      double theta = -angleBetween(prev.twin.curve.direction(0), curve.direction(0));
+      if (Scalars.equals(theta, 0, 1e-6) || Scalars.equals(theta, Math.PI * 2, 1e-6)) {
+        theta = orientation(prev.twin.curve, curve) == Orientation.LEFT ? 0 : Math.PI * 2;
       }
-
-      Vec2 a = prev.start();
-      Vec2 b = start();
-      Vec2 c = end();
-
-      /*Vec2 in = a.sub(b).norm();
-      Vec2 ray = p.sub(b).norm();
-      Vec2 out = c.sub(b).norm();*/
-
-      Vec2 in = prev.curve.direction(1).negate().norm();
-      Vec2 ray = d.norm();
-      Vec2 out = curve.direction(0).norm();
-
-      if (Vec.equals(in, ray, EPSILON) || Vec.equals(out, ray, EPSILON)) {
-        in = a.sub(b).norm();
-        ray = p.sub(b).norm();
-        out = c.sub(b).norm();
-
-        /*in = prev.curve.direction(1).negate().norm();
-        ray = d.norm();
-        out = curve.direction(0).norm();*/
-      }
-
-      double t0 = -angleBetween(in, ray);
-      double t1 = -angleBetween(in, out);
-
-      return t0 != 0 && t0 <= t1;
+      return theta;
     }
 
     public void link(HalfEdge e) {
@@ -92,6 +127,26 @@ public class EdgeList {
 
     public Vec2 end() {
       return curve.end();
+    }
+
+    public Iterable<HalfEdge> face() {
+      return () -> new Iterator<HalfEdge>() {
+        HalfEdge curr = HalfEdge.this;
+        boolean started = false;
+
+        @Override
+        public boolean hasNext() {
+          return !started || curr != HalfEdge.this;
+        }
+
+        @Override
+        public HalfEdge next() {
+          HalfEdge result = curr;
+          started = true;
+          curr = curr.next;
+          return result;
+        }
+      };
     }
 
     @Override
@@ -111,9 +166,9 @@ public class EdgeList {
   public EdgeList() {
   }
 
-  public static EdgeList from(Iterable<Ring> rings, int inside, int outside) {
+  public static EdgeList from(Iterable<Ring2> rings, int inside, int outside) {
     EdgeList result = new EdgeList();
-    for (Ring r : rings) {
+    for (Ring2 r : rings) {
       for (Curve2 c : r.curves) {
         result.add(c, inside, outside);
       }
@@ -142,21 +197,21 @@ public class EdgeList {
     return curr;
   }
 
-  public IList<Ring> boundaries(IntPredicate flagPredicate) {
-    IList<Ring> result = new LinearList<>();
+  public IList<Ring2> boundaries(IntPredicate flagPredicate) {
+    IList<Ring2> result = new LinearList<>();
     for (HalfEdge e : faces()) {
       if (flagPredicate.test(e.flag)) {
         IList<Curve2> cs = new LinearList<>();
-        for (HalfEdge edge : face(e)) {
+        for (HalfEdge edge : e.face()) {
           cs.addFirst(edge.twin.curve);
         }
-        result.addLast(new Ring(cs));
+        result.addLast(new Ring2(cs));
       }
     }
     return result;
   }
 
-  public IMap<Ring, Integer> rings() {
+  public IMap<Ring2, Integer> rings() {
     return faces().stream().collect(Maps.linearCollector(this::ring, e -> e.flag));
   }
 
@@ -177,7 +232,7 @@ public class EdgeList {
           curr = curr.next;
         }
 
-        for (HalfEdge edge : face(e)) {
+        for (HalfEdge edge : e.face()) {
           if (edge.flag == flag) {
             break;
           }
@@ -190,30 +245,10 @@ public class EdgeList {
     return LinearList.from(pseudoFaces.elements());
   }
 
-  public Ring ring(HalfEdge e) {
+  public Ring2 ring(HalfEdge e) {
     IList<Curve2> cs = new LinearList<>();
-    face(e).forEach(edge -> cs.addLast(edge.curve));
-    return new Ring(cs);
-  }
-
-  public Iterable<HalfEdge> face(HalfEdge e) {
-    return () -> new Iterator<HalfEdge>() {
-      HalfEdge curr = e;
-      boolean started = false;
-
-      @Override
-      public boolean hasNext() {
-        return !started || curr != e;
-      }
-
-      @Override
-      public HalfEdge next() {
-        HalfEdge result = curr;
-        started = true;
-        curr = curr.next;
-        return result;
-      }
-    };
+    e.face().forEach(edge -> cs.addLast(edge.curve));
+    return new Ring2(cs);
   }
 
   /// modifiers
@@ -228,15 +263,12 @@ public class EdgeList {
   }
 
   public HalfEdge add(Vec2 a, Vec2 b, int left, int right) {
-    return add(LineSegment2.from(a, b), left, right);
+    return add(Line2.from(a, b), left, right);
   }
 
-  public HalfEdge add(Curve2 c, int left, int right) {
-
-    HalfEdge e = new HalfEdge(c, left, right);
-
+  private void add(HalfEdge e) {
+    Curve2 c = e.curve;
     Vec2 start = c.start();
-    Vec2 end = c.end();
 
     if (vertices.contains(start)) {
       HalfEdge src = vertices.get(start).get();
@@ -248,72 +280,56 @@ public class EdgeList {
 
         // split the vertex appropriately
       } else {
-        Vec2 p = c.end();
-        Vec2 d = c.direction(0);
-        while (!src.visible(p, d)) {
-          src = src.twin.next;
-        }
+        HalfEdge curr = src;
+        for (; ; ) {
+          switch (curr.visible(c)) {
+            case INSIDE:
+              curr.prev.link(e);
+              e.twin.link(curr);
+              registerFace(e);
+              return;
 
-        // it's an equivalent edge, just update the flags and return
-        if (src.end().equals(c.end()) && Vec.equals(src.curve.direction(0), c.direction(0), EPSILON)) {
-          src.flag |= left;
-          src.twin.flag |= right;
-          return src;
-        }
+            case COLLINEAR:
+              assert curr.end().equals(c.end());
+              curr.flag |= e.flag;
+              return;
 
-        src.prev.link(e);
-        e.twin.link(src);
-        registerFace(e);
+            case OUTSIDE:
+              curr = curr.twin.next;
+          }
+
+          assert curr != src;
+        }
       }
     } else {
-      assert !checkForNearMiss(start);
+      //assert !checkForNearMiss(start);
       vertices.put(start, e);
       registerFace(e);
     }
 
-    if (vertices.contains(end)) {
-      HalfEdge dst = vertices.get(end).get();
+  }
 
-      // we're connecting to a dangling edge
-      if (dst.prev == null) {
-        e.link(dst);
-        dst.twin.link(e.twin);
-
-        // split the vertex appropriately
-      } else {
-        Vec2 p = c.start();
-        Vec2 d = c.direction(1).negate();
-        while (!dst.visible(p, d)) {
-          dst = dst.twin.next;
-        }
-
-        dst.prev.link(e.twin);
-        e.link(dst);
-        registerFace(e.twin);
-      }
-    } else {
-      assert !checkForNearMiss(end);
-      vertices.put(end, e.twin);
-      registerFace(e);
-    }
-
+  public HalfEdge add(Curve2 c, int left, int right) {
+    HalfEdge e = new HalfEdge(c, left, right);
+    add(e);
+    add(e.twin);
     return e;
   }
 
   public void removeFaces(IntPredicate toRemove, int outside) {
     for (HalfEdge e : faces()) {
       if (e.flag != outside && toRemove.test(e.flag)) {
-        removeFace(e, n -> n == outside, outside);
+        removeFace(e, outside);
       }
     }
   }
 
-  public void removeFace(HalfEdge e, IntPredicate isOutside, int flag) {
-    for (HalfEdge edge : LinearList.from(face(e))) {
-      if (isOutside.test(edge.twin.flag)) {
+  public void removeFace(HalfEdge e, int outside) {
+    for (HalfEdge edge : LinearList.from(e.face())) {
+      if (edge.twin.flag == outside) {
         remove(edge);
       } else {
-        edge.flag = flag;
+        edge.flag = outside;
       }
     }
   }
@@ -395,7 +411,7 @@ public class EdgeList {
   public String toString() {
     StringBuilder b = new StringBuilder();
     for (HalfEdge e : faces()) {
-      Ring r = ring(e);
+      Ring2 r = ring(e);
       b.append("RING: " + e.flag + "\n");
       for (Curve2 c : r.curves) {
         b.append("  " + c + "\n");

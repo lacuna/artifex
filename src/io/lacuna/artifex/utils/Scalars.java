@@ -8,7 +8,7 @@ public class Scalars {
   public static final double EPSILON = 1e-14;
 
   public static boolean equals(double a, double b, double epsilon) {
-    return Math.abs(a - b) <= epsilon;
+    return Math.abs(a - b) < epsilon;
   }
 
   public static double lerp(double a, double b, double t) {

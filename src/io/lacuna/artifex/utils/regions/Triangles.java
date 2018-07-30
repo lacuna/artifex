@@ -1,7 +1,6 @@
 package io.lacuna.artifex.utils.regions;
 
-import io.lacuna.artifex.Fan2;
-import io.lacuna.artifex.LineSegment2;
+import io.lacuna.artifex.Line2;
 import io.lacuna.artifex.Vec2;
 import io.lacuna.artifex.utils.EdgeList;
 import io.lacuna.artifex.utils.EdgeList.HalfEdge;
@@ -11,7 +10,6 @@ import io.lacuna.bifurcan.*;
 import java.util.Comparator;
 
 import static io.lacuna.artifex.Vec2.angleBetween;
-import static io.lacuna.artifex.utils.regions.Hulls.HULL;
 import static io.lacuna.artifex.utils.regions.Hulls.INSIDE;
 import static io.lacuna.artifex.utils.regions.Hulls.OUTSIDE;
 
@@ -103,7 +101,7 @@ public class Triangles {
     }
   }
 
-  public static IList<Fan2> fans(EdgeList edges) {
+  /*public static IList<Fan2> fans(EdgeList edges) {
 
     IList<Fan2> result = new LinearList<>();
 
@@ -111,7 +109,7 @@ public class Triangles {
 
       if (init.flag == Hulls.HULL) {
         HalfEdge curr = init;
-        while (curr.curve instanceof LineSegment2) {
+        while (curr.curve instanceof Line2) {
           curr = curr.next;
         }
 
@@ -158,14 +156,14 @@ public class Triangles {
               break;
           }
 
-          if (xa) result.addLast(Fan2.external(centroid, (LineSegment2) a.curve));
-          if (xb) result.addLast(Fan2.external(centroid, (LineSegment2) b.curve));
-          if (xc) result.addLast(Fan2.external(centroid, (LineSegment2) c.curve));
+          if (xa) result.addLast(Fan2.external(centroid, (Line2) a.curve));
+          if (xb) result.addLast(Fan2.external(centroid, (Line2) b.curve));
+          if (xc) result.addLast(Fan2.external(centroid, (Line2) c.curve));
         }
       }
     }
 
     return result;
-  }
+  }*/
 
 }

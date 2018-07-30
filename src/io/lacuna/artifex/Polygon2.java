@@ -126,10 +126,10 @@ public class Polygon2 {
     /**
      * @return an iterator over all the edges
      */
-    public Iterator<LineSegment2> edges() {
+    public Iterator<Line2> edges() {
       Iterator<Vec2> vertices = vertices();
 
-      return new Iterator<LineSegment2>() {
+      return new Iterator<Line2>() {
 
         Vec2 v = vertices.next();
 
@@ -139,8 +139,8 @@ public class Polygon2 {
         }
 
         @Override
-        public LineSegment2 next() {
-          LineSegment2 edge = LineSegment2.from(v, vertices.next());
+        public Line2 next() {
+          Line2 edge = Line2.from(v, vertices.next());
           v = edge.end();
           return edge;
         }

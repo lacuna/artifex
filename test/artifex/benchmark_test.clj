@@ -25,7 +25,7 @@
     (c/quick-bench
       (Vec/equals a b 0.5))))
 
-(deftest ^:benchmark benchmark-regions
+#_(deftest ^:benchmark benchmark-regions
   (let [regions (->> (cycle [(Region2/circle) (Region2/square)])
                   (take 1e3)
                   (map #(.transform % (Matrix3/translate (rand) (rand)))))]

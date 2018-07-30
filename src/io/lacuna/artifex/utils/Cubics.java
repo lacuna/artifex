@@ -1,51 +1,15 @@
-package io.lacuna.artifex;
+package io.lacuna.artifex.utils;
 
-import io.lacuna.artifex.Bezier2.CubicBezier2;
-import io.lacuna.artifex.utils.regions.Hulls;
+import io.lacuna.artifex.*;
 
 import static io.lacuna.artifex.Vec.vec;
 
-public class Fan2 {
-
-  public enum Type {
-    CONVEX,
-    CONCAVE,
-    INTERNAL
-  }
-
-  public final Vec2 origin;
-  public final Curve2 edge;
-  public final Type type;
-
-  private Fan2(Vec2 origin, Curve2 edge, Type type) {
-    this.origin = origin;
-    this.edge = edge;
-    this.type = type;
-  }
-
-  public static Fan2 curve(Curve2 c) {
-    return new Fan2(Hulls.tangentIntersection(c), c, c.isConvex() ? Type.CONVEX : Type.CONCAVE);
-  }
-
-  public static Fan2 internal(Vec2 a, Vec2 b, Vec2 c) {
-    return new Fan2(a, LineSegment2.from(b, c), Type.INTERNAL);
-  }
-
-  public static Fan2 external(Vec2 origin, LineSegment2 line) {
-    return new Fan2(origin, line, Type.CONVEX);
-  }
-
-  ///
-
-  public boolean isInternal() {
-    return type == Type.INTERNAL;
-  }
-
-  public boolean isConvex() {
-    return type == Type.CONVEX;
-  }
-
-  /// adapted from https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch25.html
+/**
+ * adapted from https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch25.html
+ *
+ * @author ztellman
+ */
+public class Cubics {
 
   private enum CubicType {
     LINE,
@@ -55,7 +19,7 @@ public class Fan2 {
     LOOP
   }
 
-  public static Vec3 coefficients(CubicBezier2 c) {
+  public static Vec3 coefficients(Bezier2.CubicBezier2 c) {
     Vec2 p0 = c.p0,
       p1 = c.p1,
       p2 = c.p2,

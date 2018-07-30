@@ -2,47 +2,63 @@ package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
 import io.lacuna.artifex.utils.Intersections;
-import io.lacuna.artifex.utils.Scalars;
+
+import java.util.Arrays;
+import java.util.Comparator;
 
 import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
-import static io.lacuna.artifex.Vec2.cross;
+import static io.lacuna.artifex.utils.Intersections.PARAMETRIC_BOUNDS;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
-import static io.lacuna.artifex.utils.Scalars.inside;
 
 /**
  * @author ztellman
  */
-public class LineSegment2 implements Curve2 {
+public class Line2 implements Curve2 {
 
   private final double ax, ay, bx, by;
   private int hash = -1;
 
-  private LineSegment2(double ax, double ay, double bx, double by) {
+  private Line2(double ax, double ay, double bx, double by) {
     this.ax = ax;
     this.ay = ay;
     this.bx = bx;
     this.by = by;
   }
 
-  public static LineSegment2 from(Vec2 a, Vec2 b) {
+  public static Line2 from(Vec2 a, Vec2 b) {
     if (Vec.equals(a, b, EPSILON)) {
       throw new IllegalArgumentException("segments must have non-zero length");
     }
-    return new LineSegment2(a.x, a.y, b.x, b.y);
+    return new Line2(a.x, a.y, b.x, b.y);
   }
 
-  public static LineSegment2 from(Box2 b) {
-    return new LineSegment2(b.lx, b.ly, b.ux, b.uy);
+  public static Line2 from(Box2 b) {
+    return new Line2(b.lx, b.ly, b.ux, b.uy);
   }
 
-  public LineSegment2 transform(Matrix3 m) {
-    return LineSegment2.from(start().transform(m), end().transform(m));
+  public Line2 transform(Matrix3 m) {
+    return Line2.from(start().transform(m), end().transform(m));
   }
 
   @Override
-  public LineSegment2 reverse() {
-    return new LineSegment2(bx, by, ax, ay);
+  public Type type() {
+    return Type.FLAT;
+  }
+
+  @Override
+  public double signedArea() {
+    return ((ax * by) - (bx * ay)) / 2;
+  }
+
+  @Override
+  public double length() {
+    return end().sub(start()).length();
+  }
+
+  @Override
+  public Line2 reverse() {
+    return new Line2(bx, by, ax, ay);
   }
 
   @Override
@@ -52,11 +68,9 @@ public class LineSegment2 implements Curve2 {
 
   @Override
   public Vec2 position(double t) {
-    if (t < 0 || t > 1) {
-      throw new IllegalArgumentException("t must be within [0, 1]: " + t);
-    } else if (t < EPSILON) {
+    if (t == 0) {
       return start();
-    } else if (t + EPSILON > 1) {
+    } else if (t == 1) {
       return end();
     }
 
@@ -69,15 +83,13 @@ public class LineSegment2 implements Curve2 {
   }
 
   @Override
-  public LineSegment2[] split(double t) {
-    if (t < 0 || t > 1) {
-      throw new IllegalArgumentException("t must be within [0,1]");
-    } else if (t < SPLIT_EPSILON || t > 1 - SPLIT_EPSILON) {
-      return new LineSegment2[]{this};
+  public Line2[] split(double t) {
+    if (t <= 0 || t >= 1) {
+      throw new IllegalArgumentException("t must be within (0,1)");
     }
 
     Vec2 v = position(t);
-    return new LineSegment2[]{from(start(), v), from(v, end())};
+    return new Line2[]{from(start(), v), from(v, end())};
   }
 
   @Override
@@ -88,7 +100,7 @@ public class LineSegment2 implements Curve2 {
   }
 
   @Override
-  public LineSegment2 endpoints(Vec2 start, Vec2 end) {
+  public Line2 endpoints(Vec2 start, Vec2 end) {
     return from(start, end);
   }
 
@@ -108,38 +120,17 @@ public class LineSegment2 implements Curve2 {
   }
 
   @Override
-  public double[] intersections(Curve2 c, double epsilon) {
+  public Vec2[] intersections(Curve2 c, double epsilon) {
+    Vec2[] result = Intersections.lineCurve(this, c, epsilon)
+      .stream()
+      .map(v -> v.map(n -> Intersections.round(n, epsilon)))
+      .filter(PARAMETRIC_BOUNDS::contains)
+      .toArray(Vec2[]::new);
 
-    if (c instanceof LineSegment2) {
-      LineSegment2 p = this;
-      LineSegment2 q = (LineSegment2) c;
-
-      Vec2 pv = p.end().sub(p.start());
-      Vec2 qv = q.end().sub(q.start());
-
-      double d = cross(pv, qv);
-      Vec2 psq = p.start().sub(q.start());
-
-      if (inside(-epsilon, d, epsilon)) {
-        return inside(-epsilon, cross(psq, pv), epsilon)
-          ? Intersections.collinearIntersection(p, q)
-          : new double[0];
-      }
-
-      double s = cross(qv, psq) / d;
-      if (inside(-epsilon, s, 1 + epsilon)) {
-        double t = cross(pv, psq) / d;
-        if (inside(-epsilon, t, 1 + epsilon)) {
-          return new double[]{
-            Intersections.round(s, epsilon),
-            Intersections.round(t, epsilon)};
-        }
-      }
-
-      return new double[0];
-    } else {
-      return Intersections.intersections(this, c, epsilon);
+    if (result.length > 1) {
+      Arrays.sort(result, Comparator.comparingDouble(v -> v.x));
     }
+    return result;
   }
 
   @Override
@@ -175,8 +166,8 @@ public class LineSegment2 implements Curve2 {
   public boolean equals(Object obj) {
     if (obj == this) {
       return true;
-    } else if (obj instanceof LineSegment2) {
-      LineSegment2 s = (LineSegment2) obj;
+    } else if (obj instanceof Line2) {
+      Line2 s = (Line2) obj;
       return ax == s.ax && ay == s.ay && bx == s.bx && by == s.by;
     } else {
       return false;

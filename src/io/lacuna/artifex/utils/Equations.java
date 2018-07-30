@@ -9,32 +9,80 @@ import static java.lang.Math.*;
 public class Equations {
 
   // Adapted from https://github.com/Chlumsky/msdfgen/blob/master/core/equation-solver.cpp
-  public static double[] solveLinear(double a, double b) {
-    if (abs(a) < EPSILON) {
+  public static double[] solveLinear(double a, double b, double epsilon) {
+    if (abs(a) < epsilon) {
       return new double[0];
     } else {
       return new double[]{-b / a};
     }
   }
 
-  public static double[] solveQuadratic(double a, double b, double c) {
+  public static double[] solveQuadratic(double a, double b, double c, double epsilon) {
     double d = (b * b) - (4 * a * c);
     double aa = a * 2;
 
-    if (Math.abs(a) < EPSILON) {
-      return solveLinear(b, c);
+    if (Math.abs(a) < epsilon) {
+      return solveLinear(b, c, epsilon);
     } else if (d > 0) {
       d = sqrt(d);
       return new double[]{(-b + d) / aa, (-b - d) / aa};
-    } else if (d == 0) {
+    } else if (d + epsilon > 0) {
       return new double[]{-b / aa};
     } else {
       return new double[0];
     }
   }
 
- private static double[] solveCubicNormed(double a, double b, double c) {
-    double a2 = a * a;
+  private static double[] solveCubicNormed(double a, double b, double c, double epsilon) {
+
+    double d0 = ((3 * b) - (a * a)) / 3;
+    double d1 = ((2 * a * a * a) - (9 * a * b) + (27 * c)) / 27;
+    double d2 = d1 / 2;
+    double offset = a / 3;
+
+    double disc = (d1 * d1 / 4) + (d0 * d0 * d0 / 27);
+    if (abs(disc) < epsilon) {
+      disc = 0;
+    }
+
+    double[] result;
+    if (disc > 0) {
+      double e = sqrt(disc);
+      double n1 = e - d2;
+      double n2 = -e - d2;
+      double root =
+        (n1 >= 0 ? pow(n1, 1 / 3.0) : -pow(-n1, 1 / 3.0))
+          + (n2 >= 0 ? pow(n2, 1 / 3.0) : -pow(-n2, 1 / 3.0));
+
+      result = new double[]{root - offset};
+
+    } else if (disc < 0) {
+
+      double dist = sqrt(-d0 / 3);
+      double angle = atan2(sqrt(-disc), -d2) / 3;
+      double cos = cos(angle);
+      double sin = sin(angle);
+      double sqrt3 = sqrt(3);
+
+      result = new double[]{
+        (2 * dist * cos) - offset,
+        -dist * (cos + (sqrt3 * sin)) - offset,
+        -dist * (cos - (sqrt3 * sin)) - offset
+      };
+    } else {
+
+      double n = d1 >= 0 ? -pow(d2, 1 / 3.0) : pow(-d2, 1 / 3.0);
+
+      result = new double[]{
+        (2 * n) - offset,
+        -n - offset
+      };
+    }
+
+    return result;
+
+
+    /*double a2 = a * a;
     double q = (a2 - (3 * b)) / 9;
     double r = (a * ((2 * a2) - (9 * b)) + (27 * c)) / 54;
     double r2 = r * r;
@@ -63,15 +111,19 @@ public class Equations {
       double res1 = -0.5 * (A + B) - a;
       double res2 = 0.5 * sqrt(3.0) * (A - B);
 
-      return (abs(res2) < EPSILON) ? new double[]{res0, res1} : new double[]{res0};
-    }
+      //System.out.println(res0 + " " + res1 + " " + res2);
+
+      return abs(res2) < epsilon
+        ? new double[]{res0, res1}
+        : new double[]{res0};
+    }*/
   }
 
-  public static double[] solveCubic(double a, double b, double c, double d) {
-    if (Math.abs(a) < EPSILON) {
-      return solveQuadratic(b, c, d);
+  public static double[] solveCubic(double a, double b, double c, double d, double epsilon) {
+    if (Math.abs(a) < epsilon) {
+      return solveQuadratic(b, c, d, epsilon);
     } else {
-      return solveCubicNormed(b / a, c / a, d / a);
+      return solveCubicNormed(b / a, c / a, d / a, epsilon);
     }
   }
 }

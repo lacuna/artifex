@@ -1,5 +1,6 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.DoubleAccumulator;
 import io.lacuna.bifurcan.LinearList;
 
 import java.util.ArrayList;
@@ -15,25 +16,24 @@ import static io.lacuna.artifex.utils.Equations.solveCubic;
 import static io.lacuna.artifex.utils.Equations.solveQuadratic;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static io.lacuna.artifex.utils.Scalars.inside;
-import static java.lang.Math.abs;
-import static java.lang.Math.max;
+import static java.lang.Math.*;
 
 /**
  * @author ztellman
  */
 public class Bezier2 {
 
-  public static Curve2 bezier(Vec2 p0, Vec2 p1) {
-    return LineSegment2.from(p0, p1);
+  public static Curve2 curve(Vec2 p0, Vec2 p1) {
+    return Line2.from(p0, p1);
   }
 
-  public static Curve2 bezier(Vec2 p0, Vec2 p1, Vec2 p2) {
+  public static Curve2 curve(Vec2 p0, Vec2 p1, Vec2 p2) {
     return Math.abs(Vec2.cross(p1.sub(p0), p2.sub(p0))) < EPSILON
-      ? bezier(p0, p2)
+      ? curve(p0, p2)
       : new QuadraticBezier2(p0, p1, p2);
   }
 
-  public static Curve2 bezier(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
+  public static Curve2 curve(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
     return new CubicBezier2(p0, p1, p2, p3);
   }
 
@@ -76,12 +76,22 @@ public class Bezier2 {
     }
 
     @Override
+    public double length() {
+      return 0;
+    }
+
+    @Override
+    public double signedArea() {
+      return ((p2.x * (p0.y - (2 * p1.y)))
+        + (2 * p1.x * (p2.y - p0.y))
+        + (p0.x * ((2 * p1.y) + p2.y))) / 6;
+    }
+
+    @Override
     public Vec2 position(double t) {
-      if (t < 0 || t > 1) {
-        throw new IllegalArgumentException("t must be within [0, 1]");
-      } else if (t < EPSILON) {
+      if (t == 0) {
         return start();
-      } else if (t + EPSILON > 1) {
+      } else if (t == 1) {
         return end();
       }
 
@@ -117,16 +127,14 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
-      if (t < 0 || t > 1) {
-        throw new IllegalArgumentException("t must be within [0,1]");
-      } else if (t < SPLIT_EPSILON || t > 1 - SPLIT_EPSILON) {
-        return new QuadraticBezier2[]{this};
+      if (t <= 0 || t >= 1) {
+        throw new IllegalArgumentException("t must be within (0,1)");
       }
 
       Vec2 e = lerp(p0, p1, t);
       Vec2 f = lerp(p1, p2, t);
       Vec2 g = position(t);
-      return new Curve2[]{bezier(p0, e, g), bezier(g, f, p2)};
+      return new Curve2[]{curve(p0, e, g), curve(g, f, p2)};
     }
 
     @Override
@@ -161,7 +169,7 @@ public class Bezier2 {
       double b = 3 * dot(ab, br);
       double c = (2 * dot(ab, ab)) + dot(qa, br);
       double d = dot(qa, ab);
-      double[] ts = solveCubic(a, b, c, d);
+      double[] ts = solveCubic(a, b, c, d, EPSILON);
 
       for (double t : ts) {
         if (t > 0 && t < 1) {
@@ -190,14 +198,16 @@ public class Bezier2 {
     @Override
     public double[] inflections() {
 
+      final double epsilon = 1e-10;
+
       if (inflections == null) {
         Vec2 div = p0.sub(p1.mul(2)).add(p2);
         if (div.equals(Vec2.ORIGIN)) {
           inflections = new double[0];
         } else {
           Vec2 v = p0.sub(p1).div(div);
-          boolean x = inside(SPLIT_EPSILON, v.x, 1 - SPLIT_EPSILON);
-          boolean y = inside(SPLIT_EPSILON, v.y, 1 - SPLIT_EPSILON);
+          boolean x = inside(epsilon, v.x, 1 - epsilon);
+          boolean y = inside(epsilon, v.y, 1 - epsilon);
           if (x && y) {
             inflections = new double[]{v.x, v.y};
           } else if (x ^ y) {
@@ -240,7 +250,7 @@ public class Bezier2 {
 
   public static class CubicBezier2 implements Curve2 {
 
-    private static final int SEARCH_STARTS = 8;
+    private static final int SEARCH_STARTS = 4;
     private static final int SEARCH_STEPS = 8;
 
     public final Vec2 p0, p1, p2, p3;
@@ -257,11 +267,9 @@ public class Bezier2 {
 
     @Override
     public Vec2 position(double t) {
-      if (t < 0 || t > 1) {
-        throw new IllegalArgumentException("t must be within [0, 1]");
-      } else if (t < EPSILON) {
+      if (t == 0) {
         return start();
-      } else if (t + EPSILON > 1) {
+      } else if (t == 1) {
         return end();
       }
 
@@ -287,6 +295,19 @@ public class Bezier2 {
     }
 
     @Override
+    public double signedArea() {
+      return ((p3.x * (-p0.y - (3 * p1.y) - (6 * p2.y)))
+        - (3 * p2.x * (p0.y + p1.y - (2 * p3.y)))
+        + (3 * p1.x * ((-2 * p0.y) + p2.y + p3.y))
+        + (p0.x * ((6 * p1.y) + (3 * p2.y) + p3.y))) / 20;
+    }
+
+    @Override
+    public double length() {
+      return 0;
+    }
+
+    @Override
     public CubicBezier2 endpoints(Vec2 start, Vec2 end) {
       return new CubicBezier2(start, p1.add(start.sub(p0)), p2.add(end.sub(p3)), end);
     }
@@ -303,10 +324,8 @@ public class Bezier2 {
 
     @Override
     public Curve2[] split(double t) {
-      if (t < 0 || t > 1) {
-        throw new IllegalArgumentException("t must be within [0,1]");
-      } else if (t < SPLIT_EPSILON || t > 1 - SPLIT_EPSILON) {
-        return new CubicBezier2[]{this};
+      if (t <= 0 || t >= 1) {
+        throw new IllegalArgumentException("t must be within (0,1)");
       }
 
       Vec2 e = lerp(p0, p1, t);
@@ -315,7 +334,7 @@ public class Bezier2 {
       Vec2 h = lerp(e, f, t);
       Vec2 j = lerp(f, g, t);
       Vec2 k = position(t);
-      return new Curve2[]{bezier(p0, e, h, k), bezier(k, j, g, p3)};
+      return new Curve2[]{curve(p0, e, h, k), curve(k, j, g, p3)};
     }
 
     @Override
@@ -355,7 +374,7 @@ public class Bezier2 {
       }
 
       for (int i = 0; i < SEARCH_STARTS; i++) {
-        double t = (double) i / SEARCH_STARTS;
+        double t = (double) i / (SEARCH_STARTS - 1);
         for (int step = 0; ; step++) {
           Vec2 qpt = position(t).sub(p);
           distance = sign(cross(direction(t), qpt)) * qpt.length();
@@ -370,7 +389,12 @@ public class Bezier2 {
 
           Vec2 d1 = as.mul(3 * t * t).add(br.mul(6 * t)).add(ab.mul(3));
           Vec2 d2 = as.mul(6 * t).add(br.mul(6));
-          t -= dot(qpt, d1) / (dot(d1, d1) + dot(qpt, d2));
+          double dt = dot(qpt, d1) / (dot(d1, d1) + dot(qpt, d2));
+          if (abs(dt) < EPSILON) {
+            break;
+          }
+
+          t -= dt;
           if (t < 0 || t > 1) {
             break;
           }
@@ -401,19 +425,14 @@ public class Bezier2 {
         Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
         Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
 
-        double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
-        double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
+        double[] s1 = solveQuadratic(a2.x, a1.x, a0.x, epsilon);
+        double[] s2 = solveQuadratic(a2.y, a1.y, a0.y, epsilon);
 
-        int solutions = 0;
-        for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) solutions++;
-        for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) solutions++;
+        DoubleAccumulator acc = new DoubleAccumulator();
+        for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
+        for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
 
-        inflections = new double[solutions];
-        if (solutions > 0) {
-          int idx = 0;
-          for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) inflections[idx++] = n;
-          for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) inflections[idx++] = n;
-        }
+        inflections = acc.toArray();
       }
 
       return inflections;

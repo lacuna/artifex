@@ -20,7 +20,7 @@ public class Path2 {
   private final Box2 bounds;
   private final boolean isRing;
 
-  Path2(Region2.Ring ring) {
+  Path2(Ring2 ring) {
     this.curves = ring.curves;
     this.bounds = ring.bounds;
     this.isRing = true;
@@ -36,7 +36,7 @@ public class Path2 {
       Vec2 a = vertices[i];
       Vec2 b = vertices[i + 1];
       if (!Vec.equals(a, b, EPSILON)) {
-        segments.add(LineSegment2.from(vertices[i], vertices[i + 1]));
+        segments.add(Line2.from(vertices[i], vertices[i + 1]));
       }
     }
     return new Path2(segments);

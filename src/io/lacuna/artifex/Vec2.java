@@ -9,6 +9,7 @@ import java.util.function.DoublePredicate;
 import java.util.function.DoubleUnaryOperator;
 
 import static io.lacuna.artifex.Vec.dot;
+import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static java.lang.Math.acos;
 import static java.lang.Math.atan2;
 
@@ -92,6 +93,10 @@ public class Vec2 implements Vec<Vec2> {
     return new Vec2(this.x - x, this.y - y);
   }
 
+  public Vec2 swap() {
+    return new Vec2(y, x);
+  }
+
   public Vec3 vec3(double z) {
     return new Vec3(x, y, z);
   }
@@ -121,21 +126,28 @@ public class Vec2 implements Vec<Vec2> {
     return (a.x * b.y) - (a.y * b.x);
   }
 
+  public static double angleBetween(Vec2 a, Vec2 b) {
+    return angleBetween(a, b, EPSILON);
+  }
+
   /**
    * @return the clockwise angle between the two vectors, which don't have to be normalized
    */
-  public static double angleBetween(Vec2 a, Vec2 b) {
+  public static double angleBetween(Vec2 a, Vec2 b, double epsilon) {
     Vec2 na = a.norm();
     Vec2 nb = b.norm();
 
     // this seems to be necessary, probably due to imprecision in Math.sqrt
-    if (Vec.equals(na, nb, Scalars.EPSILON)) {
+    if (Vec.equals(na, nb, epsilon)) {
       return 0;
     }
 
     double theta = acos(Scalars.clamp(-1.0, dot(na, nb), 1.0));
     if (cross(na, nb) > 0) {
       theta = (Math.PI * 2) - theta;
+    }
+    if (Scalars.equals(theta, Math.PI * 2, epsilon)) {
+      theta = 0;
     }
     return -theta;
   }
@@ -167,7 +179,7 @@ public class Vec2 implements Vec<Vec2> {
 
   @Override
   public String toString() {
-    return String.format("[x=%f, y=%f]", x, y);
+    return "[x=" + x + ", y=" + y +"]";
   }
 
   @Override
