@@ -69,8 +69,13 @@ public class Operations {
     return result;
   }
 
+  public static EdgeList overlay(Region2 a, Region2 b) {
+    return Overlay.overlay(a.rings(), b.rings());
+  }
+
   public static Region2 union(Region2 a, Region2 b) {
-    EdgeList list = overlay(a.rings(), b.rings());
+    EdgeList list = overlay(a, b);
+    //System.out.println(list.rings().values());
     IList<Ring2> rings = list.boundaries(i -> (i & (IN_A | IN_B)) == 0);
     IMap<Ring2, Ring2> hierarchy = hierarchy(rings);
 

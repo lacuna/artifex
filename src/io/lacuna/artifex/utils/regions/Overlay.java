@@ -2,6 +2,7 @@ package io.lacuna.artifex.utils.regions;
 
 import io.lacuna.artifex.Curve2;
 import io.lacuna.artifex.Ring2;
+import io.lacuna.artifex.Vec;
 import io.lacuna.artifex.Vec2;
 import io.lacuna.artifex.utils.DoubleAccumulator;
 import io.lacuna.artifex.utils.EdgeList;
@@ -12,12 +13,16 @@ import io.lacuna.bifurcan.LinearMap;
 
 import java.util.Arrays;
 
+import static java.lang.Math.max;
+
 /**
  * Overlays one set of rings atop another, inserting intersection points where necessary.
  */
 public class Overlay {
 
-  public static final double OVERLAY_EPSILON = 1e-10;
+  public static final double PARAMETRIC_EPSILON = 1e-6;
+  public static final double SPATIAL_EPSILON = 1e-6;
+
   public static final int OUT_A = 1, IN_A = 2, OUT_B = 4, IN_B = 8;
 
   private final Ring2[] a, b;
@@ -49,18 +54,8 @@ public class Overlay {
     populate();
   }
 
-  private static int outerFlag(HalfEdge edge, int mask) {
-    int flag = edge.twin.flag & mask;
-    for (HalfEdge e : edge.face()) {
-      flag &= e.twin.flag;
-      if (flag == 0) {
-        break;
-      }
-    }
-    return flag;
-  }
-
   public static EdgeList overlay(Ring2[] a, Ring2[] b) {
+    //System.out.println("\noverlay");
     EdgeList result = new Overlay(a, b).list;
 
     /*for (HalfEdge edge : result.faces()) {
@@ -90,16 +85,20 @@ public class Overlay {
 
       for (Curve2 c : queues[1 - idx].active()) {
         cs[1 - idx] = c;
-        Vec2[] ts = cs[0].intersections(cs[1], OVERLAY_EPSILON);
+        Vec2[] ts = cs[0].intersections(cs[1]);
+        if (ts.length > 0) {
+          //System.out.println("\n" + ts.length + " " + cs[0] + " " + cs[1]);
+        }
 
         for (int i = 0; i < ts.length; i++) {
-          //System.out.println(ts.length + " " + ts[i]);
+          //System.out.println(ts.length + " " + ts[i] + " " + cs[0].position(ts[i].x) + " " + cs[0].position(ts[i].x).sub(cs[1].position(ts[i].y)).length() + " " + ts[i].sub(ts[max(0, i - 1)]));
+
           double t0 = ts[i].x;
           double t1 = ts[i].y;
 
           // if it's at the very end, let the next curve handle everything
           if (t1 == 1) {
-            continue;
+            //continue;
           }
 
           lower.get(cs[0]).get().add(t0);
@@ -113,21 +112,25 @@ public class Overlay {
     }
   }
 
+
+
   private DoubleAccumulator dedupe(Curve2 c, DoubleAccumulator acc) {
-    if (acc.size() < 2) {
-      return acc;
-    }
 
     double[] ts = acc.toArray();
     Arrays.sort(ts);
 
     DoubleAccumulator result = new DoubleAccumulator();
-    result.add(ts[0]);
-    for (int i = 1; i < ts.length; i++) {
-      double t0 = result.last();
+    for (int i = 0; i < ts.length; i++) {
+      double t0 = result.size() == 0 ? 0 : result.last();
       double t1 = ts[i];
-      if (t0 + OVERLAY_EPSILON > t1) {
+      if (t0 + PARAMETRIC_EPSILON > t1
+        || Vec.equals(c.position(t0), c.position(t1), SPATIAL_EPSILON)) {
         join(c.position(t0), c.position(t1));
+
+      } else if (t1 + PARAMETRIC_EPSILON > 1
+        || Vec.equals(c.position(t1), c.end(), SPATIAL_EPSILON)) {
+        join(c.position(t1), c.end());
+
       } else {
         result.add(t1);
       }
@@ -136,7 +139,17 @@ public class Overlay {
     return result;
   }
 
+  private void elide(Curve2 c) {
+    Vec2 pa = parent(c.start());
+    Vec2 pb = parent(c.end());
+    if (Vec.equals(pa, pb, SPATIAL_EPSILON)) {
+      join(pa, pb);
+    }
+  }
+
   private void join(Vec2 a, Vec2 b) {
+    a = parent(a);
+    b = parent(b);
     int cmp = a.compareTo(b);
     if (cmp < 0) {
       parent.put(b, a);
@@ -146,12 +159,16 @@ public class Overlay {
   }
 
   private Vec2 parent(Vec2 p) {
+    Vec2 curr = p;
     for (; ; ) {
-      Vec2 next = parent.get(p, null);
+      Vec2 next = parent.get(curr, null);
       if (next == null) {
-        return p;
+        if (!curr.equals(p)) {
+          parent.put(p, curr);
+        }
+        return curr;
       }
-      p = next;
+      curr = next;
     }
   }
 
@@ -160,6 +177,9 @@ public class Overlay {
 
     IMap<Curve2, DoubleAccumulator> lower = this.lower.mapValues(this::dedupe);
     IMap<Curve2, DoubleAccumulator> upper = this.upper.mapValues(this::dedupe);
+
+    lower.keys().forEach(this::elide);
+    upper.keys().forEach(this::elide);
 
     for (int i = 0; i < 2; i++) {
       IMap<Curve2, DoubleAccumulator> intersections = i == 0 ? lower : upper;

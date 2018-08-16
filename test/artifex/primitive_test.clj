@@ -15,8 +15,7 @@
     Box
     Box2
     Region2
-    Region2$Ring
-    Polygon2$Ring
+    Ring2
     Curve2
     Bezier2
     Region2

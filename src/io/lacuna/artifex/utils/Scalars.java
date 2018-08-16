@@ -5,10 +5,26 @@ package io.lacuna.artifex.utils;
  */
 public class Scalars {
 
+  public static final double MACHINE_EPSILON = Math.ulp(1.0);
   public static final double EPSILON = 1e-14;
 
   public static boolean equals(double a, double b, double epsilon) {
     return Math.abs(a - b) < epsilon;
+  }
+
+  public static boolean angleEquals(double t0, double t1, double epsilon) {
+    if (t1 < t0) {
+      double tmp = t1;
+      t1 = t0;
+      t0 = tmp;
+    }
+
+    boolean result = (t1 - t0) < epsilon;
+    if (!result) {
+      t1 -= Math.PI * 2;
+      result = (t0 - t1) < epsilon;
+    }
+    return result;
   }
 
   public static double lerp(double a, double b, double t) {

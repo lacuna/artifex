@@ -16,30 +16,36 @@ public class DoubleAccumulator {
     this.values = values;
   }
 
-  public void add(double[] ns) {
+  public DoubleAccumulator add(double[] ns) {
     while (index > this.values.length - ns.length) {
       expand();
     }
 
     System.arraycopy(ns, 0, values, index, ns.length);
     index += ns.length;
+
+    return this;
   }
 
-  public void add(double n) {
+  public DoubleAccumulator add(double n) {
     if (index > this.values.length - 1) {
       expand();
     }
 
     values[index++] = n;
+
+    return this;
   }
 
-  public void add(double a, double b) {
+  public DoubleAccumulator add(double a, double b) {
     if (index > this.values.length - 2) {
       expand();
     }
 
     values[index++] = a;
     values[index++] = b;
+
+    return this;
   }
 
   public void pop(int num) {

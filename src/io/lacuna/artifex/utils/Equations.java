@@ -1,129 +1,220 @@
 package io.lacuna.artifex.utils;
 
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
-import static java.lang.Math.*;
+import static io.lacuna.artifex.utils.Scalars.MACHINE_EPSILON;
+import static java.lang.StrictMath.*;
 
 /**
  * @author ztellman
  */
 public class Equations {
 
-  // Adapted from https://github.com/Chlumsky/msdfgen/blob/master/core/equation-solver.cpp
-  public static double[] solveLinear(double a, double b, double epsilon) {
-    if (abs(a) < epsilon) {
+  private static final double SOLUTION_EPSILON = 1e-8;
+
+  // adapted from https://github.com/paperjs/paper.js/blob/develop/src/util/Numerical.js
+
+  private static double[] trim(double[] acc, int len) {
+    if (len == acc.length) {
+      return acc;
+    } else if (len == 0) {
       return new double[0];
     } else {
-      return new double[]{-b / a};
+      double[] result = new double[len];
+      System.arraycopy(acc, 0, result, 0, len);
+      return result;
     }
   }
 
-  public static double[] solveQuadratic(double a, double b, double c, double epsilon) {
-    double d = (b * b) - (4 * a * c);
-    double aa = a * 2;
+  private static double normalizationFactor(double... ns) {
+    double max = Double.NEGATIVE_INFINITY;
+    for (double n : ns) {
+      max = max(max, abs(n));
+    }
+    double exponent = getExponent(max);
 
-    if (Math.abs(a) < epsilon) {
-      return solveLinear(b, c, epsilon);
-    } else if (d > 0) {
-      d = sqrt(d);
-      return new double[]{(-b + d) / aa, (-b - d) / aa};
-    } else if (d + epsilon > 0) {
-      return new double[]{-b / aa};
+    return (exponent < -8 || exponent > 8) ? Math.pow(2, exponent) : 1;
+  }
+
+  private static double[] split(double n) {
+    double
+      x = n * 134217729,
+      y = n - x,
+      hi = y + x,
+      lo = n - hi;
+
+    return new double[]{hi, lo};
+  }
+
+  private static double discriminant(final double a, final double b, final double c) {
+    double
+      D = (b * b) - (a * c),
+      E = (b * b) + (a * c);
+
+    if (abs(D) * 3 < E) {
+      double[]
+        ad = split(a),
+        bd = split(b),
+        cd = split(c);
+
+      double
+        p = b * b,
+        dp = ((bd[0] * bd[0]) - p + (2 * bd[0] * bd[1])) + (bd[1] * bd[1]),
+        q = a * c,
+        dq = ((ad[0] * cd[0]) - q + (ad[0] * cd[1]) + (ad[1] * cd[0])) + (ad[1] * cd[1]);
+
+      D = (p - q) + (dp - dq);
+    }
+
+    return D;
+  }
+
+  public static int solveLinear(double a, double b, double[] acc) {
+    if (abs(a) < EPSILON) {
+      return 0;
     } else {
-      return new double[0];
+      acc[0] = -b / a;
+      return 1;
     }
   }
 
-  private static double[] solveCubicNormed(double a, double b, double c, double epsilon) {
-
-    double d0 = ((3 * b) - (a * a)) / 3;
-    double d1 = ((2 * a * a * a) - (9 * a * b) + (27 * c)) / 27;
-    double d2 = d1 / 2;
-    double offset = a / 3;
-
-    double disc = (d1 * d1 / 4) + (d0 * d0 * d0 / 27);
-    if (abs(disc) < epsilon) {
-      disc = 0;
-    }
-
-    double[] result;
-    if (disc > 0) {
-      double e = sqrt(disc);
-      double n1 = e - d2;
-      double n2 = -e - d2;
-      double root =
-        (n1 >= 0 ? pow(n1, 1 / 3.0) : -pow(-n1, 1 / 3.0))
-          + (n2 >= 0 ? pow(n2, 1 / 3.0) : -pow(-n2, 1 / 3.0));
-
-      result = new double[]{root - offset};
-
-    } else if (disc < 0) {
-
-      double dist = sqrt(-d0 / 3);
-      double angle = atan2(sqrt(-disc), -d2) / 3;
-      double cos = cos(angle);
-      double sin = sin(angle);
-      double sqrt3 = sqrt(3);
-
-      result = new double[]{
-        (2 * dist * cos) - offset,
-        -dist * (cos + (sqrt3 * sin)) - offset,
-        -dist * (cos - (sqrt3 * sin)) - offset
-      };
-    } else {
-
-      double n = d1 >= 0 ? -pow(d2, 1 / 3.0) : pow(-d2, 1 / 3.0);
-
-      result = new double[]{
-        (2 * n) - offset,
-        -n - offset
-      };
-    }
-
-    return result;
-
-
-    /*double a2 = a * a;
-    double q = (a2 - (3 * b)) / 9;
-    double r = (a * ((2 * a2) - (9 * b)) + (27 * c)) / 54;
-    double r2 = r * r;
-    double q3 = q * q * q;
-
-    if (r2 < q3) {
-      double t = r / sqrt(q3);
-      if (t < -1) t = -1;
-      if (t > 1) t = 1;
-      t = Math.acos(t);
-
-      a /= 3;
-      q = -2 * sqrt(q);
-
-      return new double[]{
-        (q * cos(t / 3)) - a,
-        (q * cos((t + (2 * PI)) / 3)) - a,
-        (q * cos((t - (2 * PI)) / 3)) - a};
-    } else {
-      double A = -pow(abs(r) + sqrt(r2 - q3), 1 / 3.0);
-      if (r < 0) A = -A;
-      double B = A == 0 ? 0 : q / A;
-      a /= 3;
-
-      double res0 = (A + B) - a;
-      double res1 = -0.5 * (A + B) - a;
-      double res2 = 0.5 * sqrt(3.0) * (A - B);
-
-      //System.out.println(res0 + " " + res1 + " " + res2);
-
-      return abs(res2) < epsilon
-        ? new double[]{res0, res1}
-        : new double[]{res0};
-    }*/
+  public static double[] solveLinear(double a, double b) {
+    double[] acc = new double[1];
+    return trim(acc, solveLinear(a, b, acc));
   }
 
-  public static double[] solveCubic(double a, double b, double c, double d, double epsilon) {
-    if (Math.abs(a) < epsilon) {
-      return solveQuadratic(b, c, d, epsilon);
+  public static int solveQuadratic(double a, double b, double c, double[] acc) {
+
+    if (abs(a) < EPSILON) {
+      return solveLinear(b, c, acc);
+    }
+
+    b *= -0.5;
+    double D = discriminant(a, b, c);
+
+    if (Scalars.inside(-EPSILON, D, EPSILON)) {
+
+      double k = normalizationFactor(a, b, c);
+      if (k != 1) {
+        a *= k;
+        b *= k;
+        c *= k;
+        D = discriminant(a, b, c);
+      }
+    }
+
+    // This is the one major change from the paper.js implementation, because it was distressingly common to miss
+    // the inflection point by an infinitesimal value, causing our line/curve intersections to miss valid intersection
+    // points.  However, by nudging the values we now have to check whether our solutions are within an acceptable
+    // tolerance (specified by SOLUTION_EPSILON).
+    if (D == 0) {
+      D = MACHINE_EPSILON;
+    } else if (-EPSILON <= D && D <= 0) {
+      D = -D;
+    }
+
+    if (D > 0) {
+      double
+        Q = D < 0 ? 0 : sqrt(D),
+        R = b + (b < 0 ? -Q : Q);
+
+      if (R == 0) {
+        acc[0] = c / a;
+        acc[1] = -c / a;
+      } else {
+        acc[0] = R / a;
+        acc[1] = c / R;
+      }
+
+      int writeIdx = 0;
+      for (int readIdx = 0; readIdx < 2; readIdx++) {
+        double x = acc[readIdx];
+        double y = (a * x * x) + (-2 * b * x) + c;
+        if (abs(y) < SOLUTION_EPSILON) {
+          acc[writeIdx++] = x;
+        }
+      }
+      return writeIdx;
+
     } else {
-      return solveCubicNormed(b / a, c / a, d / a, epsilon);
+      return 0;
     }
   }
+
+  public static double[] solveQuadratic(double a, double b, double c) {
+    double[] acc = new double[2];
+    return trim(acc, solveQuadratic(a, b, c, acc));
+  }
+
+  public static int solveCubic(double a, double b, double c, double d, double[] acc) {
+
+    double k = normalizationFactor(a, b, c, d);
+    a *= k;
+    b *= k;
+    c *= k;
+    d *= k;
+
+    double x, b1, c2, qd, q;
+    if (abs(a) < EPSILON) {
+      return solveQuadratic(b, c, d, acc);
+
+    } else if (abs(d) < EPSILON) {
+      b1 = b;
+      c2 = c;
+      x = 0;
+
+    } else {
+
+      x = -(b / a) / 3;
+      b1 = (a * x) + b;
+      c2 = (b1 * x) + c;
+      qd = (((a * x) + b1) * x) + c2;
+      q = (c2 * x) + d;
+
+      double
+        t = q / a,
+        r = pow(abs(t), 1 / 3.0),
+        s = t < 0 ? -1 : 1,
+        td = -qd / a,
+        rd = td > 0 ? 1.324717957244746 * max(r, sqrt(td)) : r,
+        x0 = x - (s * rd);
+
+      if (x0 != x) {
+        do {
+          x = x0;
+          b1 = (a * x) + b;
+          c2 = (b1 * x) + c;
+          qd = (((a * x) + b1) * x) + c2;
+          q = (c2 * x) + d;
+
+          x0 = qd == 0 ? x : x - (q / (qd / (1 + MACHINE_EPSILON)));
+        } while (s * x0 > s * x);
+
+        if (abs(a) * x * x > abs(d / x)) {
+          c2 = -d / x;
+          b1 = (c2 - c) / x;
+        }
+      }
+    }
+
+    int solutions = solveQuadratic(a, b1, c2, acc);
+
+    for (int i = 0; i < solutions; i++) {
+      if (acc[i] == x) {
+        return solutions;
+      }
+    }
+
+    double y = (a * x * x * x) + (b * x * x) + (c * x) + d;
+    if (abs(y) < SOLUTION_EPSILON) {
+      acc[solutions++] = x;
+    }
+
+    return solutions;
+  }
+
+  public static double[] solveCubic(double a, double b, double c, double d) {
+    double[] acc = new double[3];
+    return trim(acc, solveCubic(a, b, c, d, acc));
+  }
+
 }

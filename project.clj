@@ -9,7 +9,7 @@
                                   [virgil "0.1.8"]
                                   [org.clojure/test.check "0.9.0"]]}}
   :jvm-opts ^:replace ["-server"
-                       "-Xmx1g"
+                       "-Xmx10g"
                        "-ea:io.lacuna..."
                        "-XX:-OmitStackTraceInFastThrow"
                        #_"-XX:+UnlockDiagnosticVMOptions"

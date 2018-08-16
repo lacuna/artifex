@@ -1,16 +1,11 @@
 package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Intersections;
-import io.lacuna.artifex.utils.Scalars;
 
 import java.util.Arrays;
-import java.util.Comparator;
 
 import static io.lacuna.artifex.Box.box;
-import static io.lacuna.artifex.Vec.vec;
-import static io.lacuna.artifex.Vec2.angleBetween;
 import static io.lacuna.artifex.Vec2.cross;
-import static io.lacuna.artifex.utils.Intersections.PARAMETRIC_BOUNDS;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static java.lang.Math.abs;
 
@@ -67,13 +62,37 @@ public interface Curve2 {
   Curve2[] split(double t);
 
   /**
-   * Performs multiple splits. Typically for N split points this will return N+1 curves, but any split intervals
-   * less than {@code Curve2.SPLIT_EPSILON} will be ignored.
-   *
-   * @param ts an array of parametric split points, which will be sorted in-place
+   * @param tMin the lower parametric bound
+   * @param tMax the upper parametric bound
+   * @return the curve within [tMin, tMax]
+   */
+  default Curve2 range(double tMin, double tMax) {
+    if (tMin == tMax) {
+      throw new IllegalArgumentException("range must be non-zero");
+    } else if (tMax < tMin) {
+      throw new IllegalArgumentException("tMin must be less than tMax");
+    }
+
+    Curve2 c;
+    if (tMin == 0 && tMax == 1) {
+      return this;
+    } else if (tMin == 0) {
+      c = split(tMax)[0];
+    } else if (tMax == 1) {
+      c = split(tMin)[1];
+    } else {
+      c = split(tMin)[1].split((tMax - tMin) / (1 - tMin))[0];
+    }
+
+    return c.endpoints(position(tMin), position(tMax));
+  }
+
+  /**
+   * @param ts an array of parametric split points
    * @return an array of curves, split at the specified points.
    */
   default Curve2[] split(double[] ts) {
+    /*ts = ts.clone();
     Arrays.sort(ts);
 
     int offset = 0;
@@ -92,29 +111,59 @@ public interface Curve2 {
       return split(ts[offset]);
     }
 
-    // we want the endpoints of the split curves to *exactly* equal the values returned by position()
-    Vec2[] endpoints = new Vec2[len + 2];
-    endpoints[0] = start();
-    for (int i = 0; i < len; i++) {
-      endpoints[i + 1] = position(ts[offset + i]);
-    }
-    endpoints[endpoints.length - 1] = end();
-
     Curve2[] result = new Curve2[len + 1];
-    Curve2 c = this;
-    double prev = 0;
-    for (int i = 0; i < len; i++) {
-      double p = ts[i + offset];
-      Curve2[] parts = c.split((p - prev) / (1 - prev));
-      prev = p;
-
-      //assert !Vec.equals(endpoints[i], endpoints[i + 1], EPSILON);
-      result[i] = parts[0].endpoints(endpoints[i], endpoints[i + 1]);
-      c = parts[1];
+    result[0] = range(0, ts[1]);
+    for (int i = 0; i < len - 1; i++) {
+      result[i + 1] = range(ts[i], ts[i + 1]);
     }
-    result[len] = c.endpoints(endpoints[len], endpoints[len + 1]);
+    result[len] = range(ts[len - 1], 1);
 
-    return result;
+    return result;*/
+
+    ts = ts.clone();
+      Arrays.sort(ts);
+
+      int offset = 0;
+      int len = 0;
+      if (ts.length > 0) {
+        offset = ts[0] == 0 ? 1 : 0;
+        len = ts.length - offset;
+        if (ts[ts.length - 1] == 1) {
+          len--;
+        }
+      }
+
+      if (len == 0) {
+        return new Curve2[] {this};
+      } else if (len == 1) {
+        return split(ts[offset]);
+      }
+
+      // we want the endpoints of the split curves to *exactly* equal the values returned by position()
+      Vec2[] endpoints = new Vec2[len + 2];
+      endpoints[0] = start();
+      for (int i = 0; i < len; i++) {
+        endpoints[i + 1] = position(ts[offset + i]);
+      }
+      endpoints[endpoints.length - 1] = end();
+
+      Curve2[] result = new Curve2[len + 1];
+      Curve2 c = this;
+      double prev = 0;
+      for (int i = 0; i < len; i++) {
+        double p = ts[i + offset];
+        Curve2[] parts = c.split((p - prev) / (1 - prev));
+        prev = p;
+
+        //assert !Vec.equals(endpoints[i], endpoints[i + 1], EPSILON);
+        result[i] = parts[0].endpoints(endpoints[i], endpoints[i + 1]);
+        c = parts[1];
+      }
+      result[len] = c.endpoints(endpoints[len], endpoints[len + 1]);
+
+      return result;
+
+
   }
 
   /**
@@ -131,25 +180,7 @@ public interface Curve2 {
     return bounds;
   }
 
-  default Type type() {
-    Vec2 u = direction(0);
-    Vec2 v = end().sub(start());
-    double det = cross(u, v);
-
-    if (abs(det) < 1e-3) {
-      u = u.norm();
-      v = v.norm();
-      det = cross(u, v);
-    }
-
-    if (det < -EPSILON) {
-      return Type.CONVEX;
-    } else if (det > EPSILON) {
-      return Type.CONVEX;
-    } else {
-      return Type.FLAT;
-    }
-  }
+  Type type();
 
   Vec2[] subdivide(double error);
 
@@ -159,30 +190,7 @@ public interface Curve2 {
 
   double[] inflections();
 
-  default Vec2[] intersections(Curve2 c, double epsilon) {
-    Vec2[] result;
-    if (c instanceof Line2) {
-      result = Intersections.lineCurve((Line2) c, this, epsilon)
-        .stream()
-        .map(v -> v.map(n -> Intersections.round(n, epsilon)))
-        .filter(PARAMETRIC_BOUNDS::contains)
-        .map(Vec2::swap)
-        .toArray(Vec2[]::new);
-    } else {
-      result = Intersections.curveCurve(this, c, epsilon)
-        .stream()
-        .map(v -> v.map(n -> Intersections.round(n, epsilon)))
-        .filter(PARAMETRIC_BOUNDS::contains)
-        .toArray(Vec2[]::new);
-    }
-
-    if (result.length > 1) {
-      Arrays.sort(result, Comparator.comparingDouble(v -> v.x));
-    }
-    return result;
-  }
-
   default Vec2[] intersections(Curve2 c) {
-    return intersections(c, EPSILON);
+    return Intersections.intersections(this, c);
   }
 }

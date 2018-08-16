@@ -7,24 +7,18 @@
    [clojure.test.check.clojure-test :as ct :refer (defspec)])
   (:import
    [io.lacuna.artifex.utils
+    Equations
     Scalars
+    EdgeList
     Intersections]
    [io.lacuna.artifex
+    Bezier2
     Curve2
     Region2
     Ring2
     Ring2$Location
     Vec2
     Matrix3]))
-
-(defn parse-curve [s]
-  (->> s
-    (re-seq #"=([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)")
-    (map second)
-    (map #(Double/parseDouble %))
-    (partition 2)
-    (map #(apply v %))
-    (apply curve)))
 
 (def resolution 1e1)
 
@@ -48,6 +42,15 @@
   (gen/fmap
     #(apply vector op %)
     (gen/tuple gen gen)))
+
+(defn simplify [x]
+  (if (number? x)
+    x
+    (let [[type & args] x
+          args (map simplify args)]
+      (if (= args [[:none] [:none]])
+        [:none]
+        (vec (list* type args))))))
 
 (defn gen-compound-shape [depth]
   (if (zero? depth)
@@ -76,18 +79,24 @@
     :intersection (.intersection (parse (first args)) (parse (second args)))))
 
 (defn union [a b]
-  (or a b))
+  (when-not (or (nil? a) (nil? b))
+    (or a b)))
 
 (defn intersection [a b]
-  (and a b))
+  (when-not (or (nil? a) (nil? b))
+    (and a b)))
 
 (defn difference [a b]
-  (and a (not b)))
+  (when-not (or (nil? a) (nil? b))
+    (and a (not b))))
 
 (defn test-point [[type & args :as descriptor] v]
   (case type
     :none             false
-    (:square :circle) (-> descriptor parse (.contains v))
+    (:square :circle) (condp = (.test (parse descriptor) v)
+                        Ring2$Location/INSIDE  true
+                        Ring2$Location/OUTSIDE false
+                        Ring2$Location/EDGE    nil)
     :union            (->> args
                         (map #(test-point % v))
                         (apply union))
@@ -103,26 +112,45 @@
 
 (defn spread [^Vec2 v delta]
   (for [x [-1 0 1]
-        y [-1 0 1]]
+        y [#_-1 0 #_1]]
     (.add v (Vec2. (* x delta) (* y delta)))))
 
 ;;;
 
-(defspec test-region-ops 1e3
-  (prop/for-all [descriptor (gen-compound-shape 1)
-                 points (gen/list (gen/tuple (gen-float 0 1) (gen-float 0 1)))]
+(defspec test-region-ops 1e6
+  (prop/for-all [descriptor (->> (gen-compound-shape 2)
+                              (gen/fmap simplify)
+                              (gen/such-that #(not= % [:none])))
+                 ;;points (gen/list (gen/tuple (gen-float 0 1) (gen-float 0 1)))
+                 ]
     #_(prn descriptor)
+    #_(try
+      (parse descriptor)
+      #_(prn '.)
+      true
+      (catch Exception e
+        (prn 'fail)
+        false))
     (let [^Region2 r (parse descriptor)]
-      (if (every?
+      (not (empty? (.rings r)))
+      #_(if (every?
             (fn [[x y]]
-              (let [v        (Vec2. x y)
-                    expected (test-point descriptor v)]
-                (->> (spread v (/ 0.1 resolution))
-                  (some #(= expected (.contains r %)))
-                  boolean)))
+              (let [v (Vec2. x y)]
+                (if-let [expected (test-point descriptor v)]
+                  (->> (spread v (/ 0.1 resolution))
+                    (some #(= expected (.contains r %)))
+                    boolean)
+                  true)))
+            points)
+        #_(every?
+            (fn [[x y]]
+              (let [v (Vec2. x y)]
+                (if-let [expected (test-point descriptor v)]
+                  (= expected (.contains r v))
+                  true)))
             points)
         (do
-          (prn '.)
+          #_(prn '.)
           true)
         (do
           (prn 'fail)

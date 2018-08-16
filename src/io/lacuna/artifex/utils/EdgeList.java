@@ -1,14 +1,16 @@
 package io.lacuna.artifex.utils;
 
 import io.lacuna.artifex.*;
+import io.lacuna.artifex.utils.regions.Overlay;
 import io.lacuna.bifurcan.*;
 
 import java.util.Iterator;
 import java.util.function.IntPredicate;
 
-import static io.lacuna.artifex.Vec2.angleBetween;
+import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
-import static java.lang.Math.abs;
+import static io.lacuna.artifex.utils.Scalars.angleEquals;
+import static io.lacuna.artifex.utils.Scalars.inside;
 
 /**
  * An implementation of a doubly-connected edge list.  Since this is an inherently mutable data structure, it is
@@ -17,6 +19,8 @@ import static java.lang.Math.abs;
  * @author ztellman
  */
 public class EdgeList {
+
+  private static final double ANGLE_EPSILON = Math.PI / 8;
 
   private enum Orientation {
     LEFT,
@@ -30,7 +34,11 @@ public class EdgeList {
     COLLINEAR
   }
 
-  private static Orientation orientation(Curve2 a, Curve2 b) {
+  public static double angleBetween(Curve2 a, Curve2 b) {
+    return -Vec2.angleBetween(a.direction(0), b.direction(0));
+  }
+
+  public static Orientation orientation(Curve2 a, Curve2 b) {
     Vec2 origin = a.start();
 
     double t = 1;
@@ -39,22 +47,24 @@ public class EdgeList {
       Vec2 pb = b.position(t);
 
       if (pa.sub(origin).lengthSquared() < pb.sub(origin).lengthSquared()) {
-        pb = b.position(Scalars.clamp(0, b.nearestPoint(pa), 1));
+        pb = b.position(Scalars.clamp(EPSILON, b.nearestPoint(pa), 1));
       } else {
-        pa = a.position(Scalars.clamp(0, a.nearestPoint(pb), 1));
+        pa = a.position(Scalars.clamp(EPSILON, a.nearestPoint(pb), 1));
       }
 
-      Vec2 da = pa.sub(origin).norm();
-      Vec2 db = pb.sub(origin).norm();
-      double cross = Vec2.cross(da, db);
+      if (!Vec.equals(pa, pb, Overlay.SPATIAL_EPSILON)) {
+        Vec2 da = pa.sub(origin).norm();
+        Vec2 db = pb.sub(origin).norm();
+        double cross = Vec2.cross(da, db);
 
-      if (cross < -EPSILON) {
-        return Orientation.LEFT;
-      } else if (cross > EPSILON) {
-        return Orientation.RIGHT;
+        if (cross < -EPSILON) {
+          return Orientation.LEFT;
+        } else if (cross > EPSILON) {
+          return Orientation.RIGHT;
+        }
       }
 
-      t /= 2;
+      t -= 0.25;
     }
 
     return Orientation.COLLINEAR;
@@ -79,37 +89,45 @@ public class EdgeList {
     }
 
     public Visibility visible(Curve2 c) {
-      // the precision of angleBetween is a little coarse, so give ourselves some room
-      double epsilon = 1e-6;
+      double t0 = angleBetween(prev.twin.curve, c);
+      double t1 = angleBetween(c, curve);
 
-      double t0 = -angleBetween(prev.twin.curve.direction(0), c.direction(0));
-      double t1 = interiorAngle();
+      System.out.println(t0 + " " + t1);
+      System.out.println(prev.twin.curve + "\n" + curve);
 
-      if (t0 < t1 && abs(t0) < epsilon) {
+      if (angleEquals(t0, 0, ANGLE_EPSILON)) {
+        System.out.println("a " + orientation(prev.twin.curve, c));
         switch (orientation(prev.twin.curve, c)) {
           case LEFT:
-            return Visibility.INSIDE;
-          default:
-            return Visibility.OUTSIDE;
-        }
-      } else if (abs(t1 - t0) < epsilon) {
-        switch (orientation(curve, c)) {
+            t0 = 0;
+            break;
           case RIGHT:
-            return t0 == 0 ? Visibility.OUTSIDE : Visibility.INSIDE;
           case COLLINEAR:
-            return Visibility.COLLINEAR;
-          default:
             return Visibility.OUTSIDE;
         }
       }
 
-      return t0 < t1 ? Visibility.INSIDE : Visibility.OUTSIDE;
+      if (angleEquals(t1, 0, ANGLE_EPSILON)) {
+        System.out.println("b " + orientation(c, curve));
+        switch (orientation(c, curve)) {
+          case LEFT:
+            return Visibility.INSIDE;
+          case COLLINEAR:
+            return Visibility.COLLINEAR;
+          case RIGHT:
+            return Visibility.OUTSIDE;
+        }
+      }
+
+      System.out.println("sums " + (t0 + t1) + " " + interiorAngle() + " " + orientation(prev.twin.curve, c) + " " + orientation(c, curve));
+
+      return (t0 + t1) < (interiorAngle() + ANGLE_EPSILON) ? Visibility.INSIDE : Visibility.OUTSIDE;
     }
 
     public double interiorAngle() {
-      double theta = -angleBetween(prev.twin.curve.direction(0), curve.direction(0));
-      if (Scalars.equals(theta, 0, 1e-6) || Scalars.equals(theta, Math.PI * 2, 1e-6)) {
-        theta = orientation(prev.twin.curve, curve) == Orientation.LEFT ? 0 : Math.PI * 2;
+      double theta = angleBetween(prev.twin.curve, curve);
+      if (angleEquals(theta, 0, ANGLE_EPSILON)) {
+        theta = orientation(prev.twin.curve, curve) == Orientation.RIGHT ? Math.PI * 2 : 0;
       }
       return theta;
     }
@@ -224,11 +242,14 @@ public class EdgeList {
         int j = 0;
         HalfEdge curr = e.next;
         while (curr != e) {
-          if (j++ > 1_000) {
+          if (j++ > 1_000_000) {
             throw new IllegalStateException(e.toString());
           }
           curr.flag = flag = flag | curr.flag;
           pseudoFaces.remove(curr);
+          if (curr.next == null) {
+            System.out.println("NULL! " + curr);
+          }
           curr = curr.next;
         }
 
@@ -253,66 +274,164 @@ public class EdgeList {
 
   /// modifiers
 
-  private boolean checkForNearMiss(Vec2 v) {
-    Vec2 match = vertices.keys().stream().filter(u -> Vec.equals(u, v, EPSILON)).findAny().orElse(null);
-    if (match != null) {
-      System.out.println(v + " " + match + " " + v.sub(match).length());
-      return true;
-    }
-    return false;
-  }
-
   public HalfEdge add(Vec2 a, Vec2 b, int left, int right) {
     return add(Line2.from(a, b), left, right);
   }
 
-  private void add(HalfEdge e) {
-    Curve2 c = e.curve;
-    Vec2 start = c.start();
+  private void insert(HalfEdge src, HalfEdge e) {
+    src.prev.link(e);
+    e.twin.link(src);
+    registerFace(e);
+  }
 
-    if (vertices.contains(start)) {
-      HalfEdge src = vertices.get(start).get();
+  private void overlay(HalfEdge a, HalfEdge b) {
 
-      // we're connecting from a dangling edge
-      if (src.prev == null) {
-        e.twin.link(src);
-        src.twin.link(e);
+    System.out.println("OVERLAY " + a + "\n" + b);
 
-        // split the vertex appropriately
+    if (!a.end().equals(b.end())) {
+      Vec2[] is = Intersections.collinearIntersection(a.curve, b.curve);
+      Vec2 in;
+      if (is.length > 1) {
+        in = is[1];
       } else {
-        HalfEdge curr = src;
-        for (; ; ) {
-          switch (curr.visible(c)) {
-            case INSIDE:
-              curr.prev.link(e);
-              e.twin.link(curr);
-              registerFace(e);
-              return;
-
-            case COLLINEAR:
-              assert curr.end().equals(c.end());
-              curr.flag |= e.flag;
-              return;
-
-            case OUTSIDE:
-              curr = curr.twin.next;
-          }
-
-          assert curr != src;
-        }
+        double la = a.end().sub(a.start()).length();
+        double lb = b.end().sub(b.start()).length();
+        in = vec(la / lb, lb / la);
       }
-    } else {
-      //assert !checkForNearMiss(start);
-      vertices.put(start, e);
-      registerFace(e);
+      in = in.clamp(EPSILON, 1);
+
+      assert a.start().equals(b.start());
+      assert in.x == 1 || in.y == 1;
+
+      // b stretches beyond a
+      if (in.x == 1 && in.y < 1) {
+        Curve2[] cs = b.curve.split(in.y);
+        add(cs[1].endpoints(a.end(), b.end()), b.flag, b.twin.flag);
+
+        // a stretches beyond b
+      } else if (in.y == 1 && in.x < 1) {
+
+        Curve2[] cs = a.curve.split(in.x);
+        replace(a,
+          new HalfEdge(cs[0].endpoints(a.start(), b.end()), 0, 0),
+          new HalfEdge(cs[1].endpoints(b.end(), a.end()), a.flag, a.twin.flag));
+      }
     }
 
+    //a.flag |= b.flag;
+    //a.twin.flag |= b.twin.flag;
+  }
+
+  private void add(HalfEdge e) {
+    System.out.println("\nADDING " + e + " " + vertices.contains(e.start()) + " " + vertices.contains(e.end()));
+    Vec2 start = e.start();
+    Vec2 end = e.end();
+
+    // add source vertex
+    HalfEdge src = vertices.get(start, null);
+    if (src == null) {
+      vertices.put(start, e);
+      registerFace(e);
+
+    } else if (src.prev == null) {
+      e.twin.link(src);
+      src.twin.link(e);
+
+    } else {
+      HalfEdge curr = src;
+      for (; ; ) {
+        Visibility v = curr.visible(e.curve);
+        if (v == Visibility.INSIDE) {
+          insert(curr, e);
+          break;
+
+        } else if (v == Visibility.COLLINEAR) {
+          overlay(curr, e);
+          return;
+
+        } else {
+          curr = curr.twin.next;
+        }
+
+        assert curr != src;
+      }
+    }
+
+    // add destination vertex
+    HalfEdge dst = vertices.get(end, null);
+    if (dst == null) {
+      vertices.put(end, e.twin);
+      registerFace(e.twin);
+
+    } else if (dst.prev == null) {
+      e.link(dst);
+      dst.twin.link(e.twin);
+
+    } else {
+
+      HalfEdge curr = e.prev;
+      HalfEdge match = null;
+      for (; ; ) {
+        if (curr == null || curr == e || curr == e.twin) {
+          break;
+        } else if (curr.start().equals(end) &&
+          (curr.prev == null
+            || match == null
+            || curr.visible(e.twin.curve) == Visibility.INSIDE)) {
+          match = curr;
+        }
+
+        curr = curr.prev;
+      }
+
+      if (match != null) {
+        if (match.prev == null) {
+          e.link(match);
+          match.twin.link(e.twin);
+        } else {
+          insert(match, e.twin);
+        }
+        return;
+      }
+
+      curr = dst;
+      for (; ; ) {
+        Visibility v = curr.visible(e.twin.curve);
+        if (v == Visibility.INSIDE) {
+          insert(curr, e.twin);
+          break;
+
+        } else if (v == Visibility.COLLINEAR) {
+          remove(e);
+          add(e.twin);
+          break;
+
+        } else {
+          curr = curr.twin.next;
+        }
+
+        assert curr != dst;
+      }
+    }
+
+  }
+
+  private void describe(Vec2 v) {
+    System.out.println("\n--- " + v);
+    HalfEdge e = vertices.get(v, null);
+    System.out.println(e.interiorAngle() + " " + orientation(e.prev.twin.curve, e.curve) + " " + e);
+    if (e != null) {
+      HalfEdge curr = e.prev.twin;
+      while (curr != null && curr != e) {
+        System.out.println(curr.interiorAngle() + " " + orientation(e.prev.twin.curve, e.curve) + " " + curr);
+        curr = curr.prev.twin;
+      }
+    }
   }
 
   public HalfEdge add(Curve2 c, int left, int right) {
     HalfEdge e = new HalfEdge(c, left, right);
     add(e);
-    add(e.twin);
     return e;
   }
 
@@ -338,7 +457,7 @@ public class EdgeList {
 
     HalfEdge prev = e.prev;
     if (prev != null) {
-      vertices.put(e.start(), prev.twin);
+      vertices.put(e.start(), e.twin.next);
 
       // singly-linked
       if (e.twin.next == prev.twin) {
@@ -350,13 +469,13 @@ public class EdgeList {
         prev.link(e.twin.next);
         invalidated = true;
       }
-    } else {
+    } else if (vertices.get(e.start(), null) == e) {
       vertices.remove(e.start());
     }
 
     HalfEdge next = e.next;
     if (next != null) {
-      vertices.put(e.end(), next);
+      vertices.put(e.end(), e.next);
 
       // singly-linked
       if (e.twin.prev == next.twin) {
@@ -368,7 +487,7 @@ public class EdgeList {
         e.twin.prev.link(next);
         invalidated = true;
       }
-    } else {
+    } else if (vertices.get(e.end(), null) == e.twin) {
       vertices.remove(e.end());
     }
 
@@ -381,6 +500,38 @@ public class EdgeList {
     }
   }
 
+  private void replace(HalfEdge e, HalfEdge a, HalfEdge b) {
+
+    describe(e.start());
+
+    /*if (e.prev != null) {
+      e.prev.link(a);
+      a.twin.link(e.twin.next);
+    }
+
+    a.link(b);
+    b.twin.link(a.twin);
+
+    if (e.next != null) {
+      b.link(e.next);
+      e.twin.prev.link(b.twin);
+    }
+
+    vertices.put(e.start(), a);
+    vertices.put(e.end(), b.twin);
+    pseudoFaces.remove(e).remove(e.twin);
+    registerFace(a);
+    registerFace(a.twin);*/
+
+    remove(e);
+
+    describe(e.start());
+    add(a);
+    add(b);
+
+
+  }
+
   public HalfEdge split(HalfEdge e, double t) {
     if (t == 0) {
       return e;
@@ -390,9 +541,11 @@ public class EdgeList {
 
     Curve2[] cs = e.curve.split(t);
 
-    remove(e);
-    add(cs[0], e.flag, e.twin.flag);
-    return add(cs[1], e.flag, e.twin.flag);
+    HalfEdge a = new HalfEdge(cs[0], e.flag, e.twin.flag);
+    HalfEdge b = new HalfEdge(cs[1], e.flag, e.twin.flag);
+    replace(e, a, b);
+
+    return a;
   }
 
   /// helpers

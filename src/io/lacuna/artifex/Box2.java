@@ -1,16 +1,18 @@
 package io.lacuna.artifex;
 
+import javax.naming.NameNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static io.lacuna.artifex.Vec.vec;
+import static java.lang.Double.NaN;
 
 /**
  * @author ztellman
  */
 public class Box2 extends Box<Vec2, Box2> {
 
-  public static final Box2 EMPTY = new Box2(Vec2.ORIGIN, Vec2.ORIGIN);
+  public static final Box2 EMPTY = new Box2(vec(NaN, NaN), vec(NaN, NaN));
 
   public final double lx, ly, ux, uy;
 
@@ -60,18 +62,17 @@ public class Box2 extends Box<Vec2, Box2> {
     return translate(vec(x, y));
   }
 
-  public Ring2 outline() {
-    List<Curve2> curves = new ArrayList<>();
-    Vec2 a = new Vec2(lx, ly);
-    Vec2 b = new Vec2(ux, ly);
-    Vec2 c = new Vec2(ux, uy);
-    Vec2 d = new Vec2(lx, uy);
-    curves.add(Line2.from(a, b));
-    curves.add(Line2.from(b, c));
-    curves.add(Line2.from(c, d));
-    curves.add(Line2.from(d, a));
+  public Vec2[] vertices() {
+    return new Vec2[] {vec(lx, ly), vec(ux, ly), vec(ux, uy), vec(lx, uy)};
+  }
 
-    return new Ring2(curves);
+  public Ring2 outline() {
+    List<Curve2> cs = new ArrayList<>();
+    Vec2[] vs = vertices();
+    for (int i = 0; i < vs.length; i++) {
+      cs.add(Line2.from(vs[i], vs[(i + 1) % 4]));
+    }
+    return new Ring2(cs);
   }
 
   @Override

@@ -4,18 +4,19 @@ import io.lacuna.artifex.Curve2;
 import io.lacuna.artifex.Ring2;
 import io.lacuna.artifex.Vec2;
 import io.lacuna.artifex.utils.DoubleAccumulator;
+import io.lacuna.artifex.utils.Intersections;
 import io.lacuna.artifex.utils.SweepQueue;
 import io.lacuna.bifurcan.IMap;
 import io.lacuna.bifurcan.LinearMap;
 
 import java.util.Arrays;
 
+import static io.lacuna.artifex.utils.Intersections.PARAMETRIC_EPSILON;
+
 /**
  * Given a ring, returns one or more rings split at points of self-intersection.
  */
 public class Simplify {
-
-  public static final double SIMPLIFY_EPSILON = 1e-9;
 
   private final Curve2[] curves;
   private final SweepQueue<Integer> queue = new SweepQueue<>();
@@ -53,7 +54,7 @@ public class Simplify {
         }
 
         Curve2 b = curves[j];
-        Vec2[] ts = a.intersections(b, SIMPLIFY_EPSILON);
+        Vec2[] ts = a.intersections(b);
         for (int k = 0; k < ts.length; k++) {
           double t0 = ts[k].x;
           double t1 = ts[k].y;
@@ -85,7 +86,7 @@ public class Simplify {
     for (int i = 1; i < ts.length; i++) {
       double t0 = result.last();
       double t1 = ts[i];
-      if (t0 + SIMPLIFY_EPSILON > t1) {
+      if (t0 + PARAMETRIC_EPSILON > t1) {
         join(c.position(t0), c.position(t1));
       } else {
         result.add(t1);

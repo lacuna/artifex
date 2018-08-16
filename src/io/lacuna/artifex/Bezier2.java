@@ -28,9 +28,7 @@ public class Bezier2 {
   }
 
   public static Curve2 curve(Vec2 p0, Vec2 p1, Vec2 p2) {
-    return Math.abs(Vec2.cross(p1.sub(p0), p2.sub(p0))) < EPSILON
-      ? curve(p0, p2)
-      : new QuadraticBezier2(p0, p1, p2);
+    return new QuadraticBezier2(p0, p1, p2);
   }
 
   public static Curve2 curve(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
@@ -50,6 +48,11 @@ public class Bezier2 {
       subdivide(result, (V) split[0], error, maxError);
       subdivide(result, (V) split[1], error, maxError);
     }
+  }
+
+  public static double signedDistance(Vec2 p, Vec2 a, Vec2 b) {
+    Vec2 d = b.sub(a);
+    return (cross(p, d) + cross(b, a)) / d.length();
   }
 
   public static class QuadraticBezier2 implements Curve2 {
@@ -73,6 +76,18 @@ public class Bezier2 {
     @Override
     public Vec2 end() {
       return p2;
+    }
+
+    @Override
+    public Type type() {
+      double d = signedDistance(p1, p0, p2);
+      if (d > EPSILON) {
+        return Type.CONVEX;
+      } else if (d < -EPSILON) {
+        return Type.CONCAVE;
+      } else {
+        return Type.FLAT;
+      }
     }
 
     @Override
@@ -169,7 +184,7 @@ public class Bezier2 {
       double b = 3 * dot(ab, br);
       double c = (2 * dot(ab, ab)) + dot(qa, br);
       double d = dot(qa, ab);
-      double[] ts = solveCubic(a, b, c, d, EPSILON);
+      double[] ts = solveCubic(a, b, c, d);
 
       for (double t : ts) {
         if (t > 0 && t < 1) {
@@ -308,6 +323,20 @@ public class Bezier2 {
     }
 
     @Override
+    public Type type() {
+      double d1 = signedDistance(p1, p0, p3);
+      double d2 = signedDistance(p2, p0, p3);
+
+      if (d1 < -EPSILON || d2 < -EPSILON) {
+        return Type.CONCAVE;
+      } else if (abs(d1) < EPSILON && abs(d2) < EPSILON) {
+        return Type.FLAT;
+      } else {
+        return Type.CONVEX;
+      }
+    }
+
+    @Override
     public CubicBezier2 endpoints(Vec2 start, Vec2 end) {
       return new CubicBezier2(start, p1.add(start.sub(p0)), p2.add(end.sub(p3)), end);
     }
@@ -425,8 +454,8 @@ public class Bezier2 {
         Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
         Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
 
-        double[] s1 = solveQuadratic(a2.x, a1.x, a0.x, epsilon);
-        double[] s2 = solveQuadratic(a2.y, a1.y, a0.y, epsilon);
+        double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
+        double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
 
         DoubleAccumulator acc = new DoubleAccumulator();
         for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);

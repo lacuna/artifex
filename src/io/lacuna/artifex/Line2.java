@@ -1,14 +1,9 @@
 package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Hashes;
-import io.lacuna.artifex.utils.Intersections;
-
-import java.util.Arrays;
-import java.util.Comparator;
 
 import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
-import static io.lacuna.artifex.utils.Intersections.PARAMETRIC_BOUNDS;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
 
 /**
@@ -17,7 +12,6 @@ import static io.lacuna.artifex.utils.Scalars.EPSILON;
 public class Line2 implements Curve2 {
 
   private final double ax, ay, bx, by;
-  private int hash = -1;
 
   private Line2(double ax, double ay, double bx, double by) {
     this.ax = ax;
@@ -27,8 +21,8 @@ public class Line2 implements Curve2 {
   }
 
   public static Line2 from(Vec2 a, Vec2 b) {
-    if (Vec.equals(a, b, EPSILON)) {
-      throw new IllegalArgumentException("segments must have non-zero length");
+    if (a.equals(b)) {
+      throw new IllegalArgumentException("segments must have non-zero length " + a + " " + b);
     }
     return new Line2(a.x, a.y, b.x, b.y);
   }
@@ -120,20 +114,6 @@ public class Line2 implements Curve2 {
   }
 
   @Override
-  public Vec2[] intersections(Curve2 c, double epsilon) {
-    Vec2[] result = Intersections.lineCurve(this, c, epsilon)
-      .stream()
-      .map(v -> v.map(n -> Intersections.round(n, epsilon)))
-      .filter(PARAMETRIC_BOUNDS::contains)
-      .toArray(Vec2[]::new);
-
-    if (result.length > 1) {
-      Arrays.sort(result, Comparator.comparingDouble(v -> v.x));
-    }
-    return result;
-  }
-
-  @Override
   public Box2 bounds() {
     return box(start(), end());
   }
@@ -156,10 +136,7 @@ public class Line2 implements Curve2 {
 
   @Override
   public int hashCode() {
-    if (hash == -1) {
-      hash = Hashes.hash(ax, ay, bx, by);
-    }
-    return hash;
+    return Hashes.hash(ax, ay, bx, by);
   }
 
   @Override

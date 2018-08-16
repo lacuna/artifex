@@ -3,11 +3,10 @@ package io.lacuna.artifex.utils;
 import io.lacuna.artifex.Bezier2.CubicBezier2;
 import io.lacuna.artifex.Bezier2.QuadraticBezier2;
 import io.lacuna.artifex.*;
-import io.lacuna.artifex.Curve2.Type;
 import io.lacuna.bifurcan.IList;
 import io.lacuna.bifurcan.LinearList;
-import io.lacuna.bifurcan.Lists;
 
+import java.util.Arrays;
 import java.util.Comparator;
 
 import static io.lacuna.artifex.Box.box;
@@ -15,9 +14,7 @@ import static io.lacuna.artifex.Vec.dot;
 import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.Vec2.cross;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
-import static io.lacuna.artifex.utils.Scalars.inside;
-import static java.lang.Math.abs;
-import static java.lang.Math.signum;
+import static java.lang.Math.*;
 
 /**
  * @author ztellman
@@ -26,195 +23,214 @@ public class Intersections {
 
   // utilities
 
+  public static final double PARAMETRIC_RESOLUTION = 1e-6;
+  public static final double PARAMETRIC_EPSILON = 1e-6;
+  public static final double SPATIAL_EPSILON = 1e-6;
+
+  public static final int MAX_CUBIC_CUBIC_INTERSECTIONS = 9;
+
   public static final Box2 PARAMETRIC_BOUNDS = box(vec(0, 0), vec(1, 1));
 
-  public static double round(double t, double epsilon) {
-    if (inside(-epsilon, t, epsilon)) {
-      return 0;
-    } else if (inside(1 - epsilon, t, 1 + epsilon)) {
-      return 1;
-    } else {
-      return t;
-    }
+  private static double signedDistance(Vec2 p, Vec2 a, Vec2 b) {
+    Vec2 d = b.sub(a);
+    return (cross(p, d) + cross(b, a)) / d.length();
   }
 
-  // numerical methods
+  //
 
-  private static final int SEARCH_ITERATIONS = 16;
-  // TODO: make this smarter
-  private static final int SEARCH_STEPS = 3;
-
-  private static class CurveInterval {
-    public final Curve2 c;
+  public static class CurveInterval {
+    public final Curve2 curve;
+    public final boolean isFlat;
     public final double tLo, tHi;
     public final Vec2 pLo, pHi;
 
-    public CurveInterval(Curve2 c, double tLo, double tHi, Vec2 pLo, Vec2 pHi) {
-      this.c = c;
+    public CurveInterval(Curve2 curve, double tLo, double tHi, Vec2 pLo, Vec2 pHi) {
+      this.curve = curve;
       this.tLo = tLo;
       this.tHi = tHi;
       this.pLo = pLo;
       this.pHi = pHi;
+
+      if (Vec.equals(pLo, pHi, SPATIAL_EPSILON) || (tHi - tLo) < PARAMETRIC_RESOLUTION) {
+        this.isFlat = true;
+
+      } else if (curve instanceof Line2) {
+        this.isFlat = true;
+
+      } else if (curve instanceof QuadraticBezier2) {
+        QuadraticBezier2 b = (QuadraticBezier2) curve.range(tLo, tHi);
+        double d = signedDistance(b.p1, pLo, pHi);
+        this.isFlat = abs(d / 2) < SPATIAL_EPSILON;
+
+      } else {
+        CubicBezier2 b = (CubicBezier2) curve.range(tLo, tHi);
+        double d1 = signedDistance(b.p1, pLo, pHi);
+        double d2 = signedDistance(b.p2, pLo, pHi);
+        this.isFlat = abs(d1 * 3 / 4.0) < SPATIAL_EPSILON && abs(d2 * 3 / 4.0) < SPATIAL_EPSILON;
+      }
     }
 
-    public CurveInterval(Curve2 c) {
-      this.c = c;
-      this.tLo = 0;
-      this.tHi = 1;
-      this.pLo = c.start();
-      this.pHi = c.end();
+    public Box2 bounds() {
+      return box(pLo, pHi);
+    }
+
+    public boolean intersects(CurveInterval c) {
+      Box2 bounds = c.bounds().expand(SPATIAL_EPSILON);
+      if (!bounds.intersects(bounds())) {
+        return false;
+      }
+
+      if (isFlat) {
+        boolean neg = false, pos = false;
+        for (Vec2 v : bounds.vertices()) {
+          double d = signedDistance(v, pLo, pHi);
+          neg = neg || d <= 0;
+          pos = pos || d >= 0;
+        }
+        return neg && pos;
+      } else if (c.isFlat) {
+        return c.intersects(this);
+      }
+
+      return true;
+    }
+    
+    public CurveInterval[] split() {
+      if (isFlat) {
+        return new CurveInterval[] {this};
+      } else {
+        double tMid = (tLo + tHi) / 2;
+        Vec2 pMid = curve.position(tMid);
+        return new CurveInterval[]{
+          new CurveInterval(curve, tLo, tMid, pLo, pMid),
+          new CurveInterval(curve, tMid, tHi, pMid, pHi)
+        };
+      }
     }
 
     public static CurveInterval[] from(Curve2 c) {
       double[] ts = c.inflections();
+      Arrays.sort(ts);
+
       if (ts.length == 0) {
-        return new CurveInterval[]{new CurveInterval(c)};
+        return new CurveInterval[]{new CurveInterval(c, 0, 1, c.start(), c.end())};
       } else {
-        CurveInterval[] is = new CurveInterval[ts.length + 1];
-        for (int i = 0; i < is.length; i++) {
+        CurveInterval[] ls = new CurveInterval[ts.length + 1];
+        for (int i = 0; i < ls.length; i++) {
           double lo = i == 0 ? 0 : ts[i - 1];
-          double hi = i == is.length - 1 ? 1 : ts[i];
-          Vec2 pLo = lo == 0 ? c.start() : is[i - 1].pHi;
-          Vec2 pHi = hi == 1 ? c.end() : c.position(hi);
-          is[i] = new CurveInterval(c, lo, hi, pLo, pHi);
+          double hi = i == ls.length - 1 ? 1 : ts[i];
+          ls[i] = new CurveInterval(c, lo, hi, c.position(lo), c.position(hi));
         }
 
-        return is;
+        return ls;
       }
     }
 
-    public double mid(double epsilon) {
-      return round((tLo + tHi) / 2, epsilon);
+    public void intersections(CurveInterval c, IList<Vec2> acc) {
+      Curve2 a = isFlat ? Line2.from(pLo, pHi) : curve;
+      Curve2 b = c.isFlat ? Line2.from(c.pLo, c.pHi) : c.curve;
+
+      if (isFlat) {
+        for (Vec2 i : lineCurve((Line2) a, b)) {
+          if (PARAMETRIC_BOUNDS.expand(PARAMETRIC_EPSILON).contains(i)) {
+            acc.addLast(Vec.lerp(vec(tLo, c.tLo), vec(tHi, c.tHi), i));
+          }
+        }
+      } else {
+        for (Vec2 i : lineCurve((Line2) b, a)) {
+          if (PARAMETRIC_BOUNDS.expand(PARAMETRIC_EPSILON).contains(i)) {
+            acc.addLast(Vec.lerp(vec(tLo, c.tLo), vec(tHi, c.tHi), i.swap()));
+          }
+        }
+      }
     }
 
-    public boolean intersects(CurveInterval c, double epsilon) {
-      // TODO avoid allocation here
-      return box(pLo, pHi).expand(epsilon).intersects(box(c.pLo, c.pHi));
-    }
-
-    public CurveInterval[] split() {
-      double tMid = (tLo + tHi) / 2;
-      Vec2 pMid = c.position(tMid);
-      return new CurveInterval[]{
-        new CurveInterval(c, tLo, tMid, pLo, pMid),
-        new CurveInterval(c, tMid, tHi, pMid, pHi)};
-    }
-
-    public boolean contains(double t, double epsilon) {
-      return tLo <= t + epsilon && t - epsilon <= tHi;
+    @Override
+    public String toString() {
+      return "[" + tLo + ", " + tHi + "]";
     }
   }
 
-  private static Vec2 closestIntersection(IList<Vec2> intersections) {
-    if (intersections.size() == 0) {
-      return null;
+  // post-processing
+
+  public static double round(double n, double epsilon) {
+    if (Scalars.equals(n, 0, epsilon)) {
+      return 0;
+    } else if (Scalars.equals(n, 1, epsilon)) {
+      return 1;
+    } else {
+      return n;
+    }
+  }
+
+  private static boolean isCollinear(Curve2 a, Curve2 b, Vec2[] is) {
+    if (is.length != 2) {
+      return false;
     }
 
-    Vec2 result = intersections.nth(0);
-    for (int i = 1; i < intersections.size(); i++) {
-      Vec2 v = intersections.nth(i);
-      if (abs(v.x) < abs(result.x)) {
-        result = v;
+    Box2 bounds = box(is[0], is[1]);
+    for (int i = 0; i < MAX_CUBIC_CUBIC_INTERSECTIONS + 1; i++) {
+      Vec2 t = bounds.lerp((double) i / MAX_CUBIC_CUBIC_INTERSECTIONS);
+      Vec2 pa = a.position(t.x);
+      Vec2 pb = b.position(t.y);
+      if (!Vec.equals(pa, pb, SPATIAL_EPSILON)) {
+        return false;
       }
     }
+
+    return true;
+  }
+
+  public static Vec2[] normalize(Curve2 a, Curve2 b, Vec2[] intersections) {
+
+    int limit = intersections.length;
+    if (limit == 0) {
+      return intersections;
+    }
+
+    int readIdx, writeIdx;
+
+    // round and filter within [0, 1]
+    for (readIdx = 0, writeIdx = 0; readIdx < limit; readIdx++) {
+      Vec2 i = intersections[readIdx].map(n -> round(n, PARAMETRIC_EPSILON));
+      if (PARAMETRIC_BOUNDS.contains(i)) {
+        intersections[writeIdx++] = i;
+      }
+    }
+    limit = writeIdx;
+
+    if (limit > 1) {
+      // dedupe intersections on b
+      Arrays.sort(intersections, 0, limit, Comparator.comparingDouble(v -> v.y));
+      for (readIdx = 0, writeIdx = -1; readIdx < limit; readIdx++) {
+        Vec2 i = intersections[readIdx];
+        if (writeIdx < 0 || !Scalars.equals(intersections[writeIdx].y, i.y, EPSILON)) {
+          intersections[++writeIdx] = i;
+        }
+      }
+      limit = writeIdx + 1;
+    }
+
+    if (limit > 1) {
+      // dedupe intersections on a
+      Arrays.sort(intersections, 0, limit, Comparator.comparingDouble(v -> v.x));
+      for (readIdx = 0, writeIdx = -1; readIdx < limit; readIdx++) {
+        Vec2 i = intersections[readIdx];
+        if (writeIdx < 0 || !Scalars.equals(intersections[writeIdx].x, i.x, EPSILON)) {
+          intersections[++writeIdx] = i;
+        }
+      }
+      limit = writeIdx + 1;
+    }
+
+    Vec2[] result = new Vec2[limit];
+    System.arraycopy(intersections, 0, result, 0, limit);
     return result;
   }
 
-  private static void intersections(CurveInterval a, CurveInterval b, IList<Vec2> acc, boolean inverted, double epsilon) {
-    if (!a.intersects(b, epsilon)) {
-      return;
-    }
+  // analytical methods
 
-    //System.out.println("\n" + a.c + "\n" + b.c);
-
-    boolean missed = false;
-
-    for (int i = 0; i < SEARCH_STEPS; i++) {
-      double ta = Scalars.lerp(a.tLo, a.tHi, (double) i / (SEARCH_STEPS - 1));
-
-      int j = 0;
-      for (; j < SEARCH_ITERATIONS; j++) {
-        //System.out.println(ta);
-        Vec2 pa = a.c.position(ta);
-        Vec2 da = a.c.direction(ta).norm();
-        Vec2 ia = closestIntersection(lineCurve(Line2.from(pa, pa.add(da)), b.c, 1e-14));
-        if (ia == null) {
-          missed = true;
-          break;
-        }
-
-        double tb = ia.y;
-        Vec2 pb = b.c.position(tb);
-        Vec2 db = b.c.direction(tb).norm();
-        Vec2 ib = closestIntersection(lineCurve(Line2.from(pb, pb.add(db)), a.c, 1e-14));
-        if (ib == null) {
-          missed = true;
-          break;
-        }
-
-        //System.out.println(ia.x + " " + ib.x + " " + vec(ta, tb));
-        if (abs(ia.x) < epsilon && abs(ib.x) < epsilon) {
-          acc.addLast(inverted ? vec(tb, ta) : vec(ta, tb));
-          break;
-        }
-
-        ta = ib.y;
-      }
-
-      if (j == SEARCH_ITERATIONS) {
-        missed = true;
-      }
-
-      if (missed) {
-        break;
-      }
-    }
-
-    if (missed) {
-      for (CurveInterval c : a.split()) {
-        intersections(b, c, acc, !inverted, epsilon);
-      }
-    }
-  }
-
-  public static IList<Vec2> curveCurve(Curve2 a, Curve2 b, double epsilon) {
-
-    LinearList<Vec2> acc = new LinearList<>();
-
-    for (CurveInterval ca : CurveInterval.from(a)) {
-      for (CurveInterval cb : CurveInterval.from(b)) {
-        intersections(ca, cb, acc, false, epsilon);
-        //intersections(cb, ca, acc, true, epsilon);
-      }
-    }
-
-    if (acc.size() < 2) {
-      return acc;
-    }
-
-    acc = LinearList.from(Lists.sort(acc, Comparator.comparingDouble(v -> v.x)));
-
-    Box2 bounds = PARAMETRIC_BOUNDS.expand(epsilon);
-
-    IList<Vec2> result = new LinearList<>();
-    while (acc.size() > 0) {
-      Vec2 v = acc.popFirst();
-      if (bounds.contains(v) && (result.size() == 0 || !Vec.equals(v, result.last(), epsilon))) {
-        result.addLast(v);
-      }
-    }
-
-    //System.out.println(result);
-
-    return result.size() > 3
-      ? collinearIntersection(a, b, epsilon)
-      : result;
-  }
-
-  /// analytical solutions
-
-
-  public static IList<Vec2> collinearIntersection(Curve2 a, Curve2 b, double epsilon) {
+  public static Vec2[] collinearIntersection(Curve2 a, Curve2 b) {
     LinearList<Vec2> result = new LinearList<>();
 
     for (int i = 0; i < 2; i++) {
@@ -222,16 +238,16 @@ public class Intersections {
 
       // a overhangs the start of b
       if (tb <= 0) {
-        double s = a.nearestPoint(b.start());
-        if (inside(-epsilon, s, 1 + epsilon)) {
-          result.addLast(vec(round(s, epsilon), 0));
+        double s = round(a.nearestPoint(b.start()), PARAMETRIC_EPSILON);
+        if (0 <= s && s <= 1) {
+          result.addLast(vec(s, 0));
         }
 
         // a overhangs the end of b
       } else if (tb >= 1) {
-        double s = a.nearestPoint(b.end());
-        if (inside(-epsilon, s, 1 + epsilon)) {
-          result.addLast(vec(round(s, epsilon), 1));
+        double s = round(a.nearestPoint(b.end()), PARAMETRIC_EPSILON);
+        if (0 <= s && s <= 1) {
+          result.addLast(vec(s, 1));
         }
 
         // a is contained in b
@@ -240,28 +256,28 @@ public class Intersections {
       }
     }
 
-    if (result.size() == 2 && Vec.equals(result.nth(0), result.nth(1), epsilon)) {
+    //System.out.println(result);
+
+    if (result.size() == 2 && Vec.equals(result.nth(0), result.nth(1), PARAMETRIC_EPSILON)) {
       result.popLast();
     }
 
-    //System.out.println(result);
-
-    return result;
+    return result.toArray(Vec2[]::new);
   }
 
-  public static IList<Vec2> lineCurve(Line2 a, Curve2 b, double epsilon) {
+  public static Vec2[] lineCurve(Line2 a, Curve2 b) {
     if (b instanceof Line2) {
-      return lineLine(a, (Line2) b, epsilon);
-    } else if (b.type() == Type.FLAT) {
-      return lineLine(a, Line2.from(b.start(), b.end()), epsilon);
+      return lineLine(a, (Line2) b);
+    } else if (b.type() == Curve2.Type.FLAT) {
+      return lineLine(a, Line2.from(b.start(), b.end()));
     } else if (b instanceof QuadraticBezier2) {
-      return lineQuadratic(a, (QuadraticBezier2) b, epsilon);
+      return lineQuadratic(a, (QuadraticBezier2) b);
     } else {
-      return lineCubic(a, (CubicBezier2) b, epsilon);
+      return lineCubic(a, (CubicBezier2) b);
     }
   }
 
-  public static IList<Vec2> lineLine(Line2 a, Line2 b, double epsilon) {
+  public static Vec2[] lineLine(Line2 a, Line2 b) {
 
     Vec2 av = a.end().sub(a.start());
     Vec2 bv = b.end().sub(b.start());
@@ -269,18 +285,21 @@ public class Intersections {
     double d = cross(av, bv);
     Vec2 asb = a.start().sub(b.start());
 
-    if (inside(-epsilon, d, epsilon)) {
-      return inside(-epsilon, cross(asb, av), epsilon)
-        ? Intersections.collinearIntersection(a, b, epsilon)
-        : Lists.EMPTY;
+    if (abs(d) < 1e-6) {
+      Vec2[] is = collinearIntersection(a, b);
+      if (Arrays.stream(is).allMatch(v -> Vec.equals(a.position(v.x), b.position(v.y), SPATIAL_EPSILON))) {
+        return is;
+      } else if (abs(d) < EPSILON) {
+        return new Vec2[0];
+      }
     }
 
     double s = cross(bv, asb) / d;
     double t = cross(av, asb) / d;
-    return LinearList.of(vec(s, t));
+    return new Vec2[]{vec(s, t)};
   }
 
-  public static IList<Vec2> lineQuadratic(Line2 p, QuadraticBezier2 q, double epsilon) {
+  public static Vec2[] lineQuadratic(Line2 p, QuadraticBezier2 q) {
 
     // (p0 - 2p1 + p2) t^2 + (-2p0 + 2p1) t + p0
     Vec2 a = q.p0.add(q.p1.mul(-2)).add(q.p2);
@@ -293,28 +312,29 @@ public class Intersections {
     double[] roots = Equations.solveQuadratic(
       dot(n, a),
       dot(n, b),
-      dot(n, c) + cross(p.start(), p.end()),
-      epsilon);
+      dot(n, c) + cross(p.start(), p.end()));
 
-    IList<Vec2> result = new LinearList<>();
-    if (inside(-EPSILON, dir.x, EPSILON)) {
+    Vec2[] result = new Vec2[roots.length];
+    if (Scalars.equals(dir.x, 0, EPSILON)) {
       double y0 = p.start().y;
-      for (double t : roots) {
+      for (int i = 0; i < roots.length; i++) {
+        double t = roots[i];
         double y1 = q.position(t).y;
-        result.addLast(vec((y1 - y0) / dir.y, t));
+        result[i] = vec((y1 - y0) / dir.y, t);
       }
     } else {
       double x0 = p.start().x;
-      for (double t : roots) {
+      for (int i = 0; i < roots.length; i++) {
+        double t = roots[i];
         double x1 = q.position(t).x;
-        result.addLast(vec((x1 - x0) / dir.x, t));
+        result[i] = vec((x1 - x0) / dir.x, t);
       }
     }
 
     return result;
   }
 
-  public static IList<Vec2> lineCubic(Line2 p, CubicBezier2 q, double epsilon) {
+  public static Vec2[] lineCubic(Line2 p, CubicBezier2 q) {
 
     // (-p0 + 3p1 - 3p2 + p3) t^3 + (3p0 - 6p1 + 3p2) t^2 + (-3p0 + 3p1) t + p0
     Vec2 a = q.p0.mul(-1).add(q.p1.mul(3)).add(q.p2.mul(-3)).add(q.p3);
@@ -323,25 +343,97 @@ public class Intersections {
     Vec2 d = q.p0;
 
     Vec2 dir = p.end().sub(p.start());
+    double dLen = dir.length();
     Vec2 n = vec(-dir.y, dir.x);
 
     double[] roots = Equations.solveCubic(
       dot(n, a),
       dot(n, b),
       dot(n, c),
-      dot(n, d) + cross(p.start(), p.end()),
-      epsilon);
+      dot(n, d) + cross(p.start(), p.end()));
 
-    IList<Vec2> result = new LinearList<>();
-    double dLen = dir.length();
-    for (double t : roots) {
+    Vec2[] result = new Vec2[roots.length];
+    for (int i = 0; i < roots.length; i++) {
+      double t = roots[i];
       Vec2 v = q.position(t).sub(p.start());
       double vLen = v.length();
       double s = (vLen / dLen) * signum(dot(dir, v));
-      result.addLast(vec(s, t));
+
+      result[i] = vec(s, t);
     }
 
     return result;
+  }
+
+  // numerical methods
+
+  public static Vec2[] curveCurve(Curve2 a, Curve2 b) {
+
+    LinearList<CurveInterval> queue = new LinearList<>();
+    CurveInterval[] as = CurveInterval.from(a);
+    CurveInterval[] bs = CurveInterval.from(b);
+    for (CurveInterval ap : as) {
+      for (CurveInterval bp : bs) {
+        queue.addLast(ap).addLast(bp);
+      }
+    }
+
+    int iterations = 0;
+    LinearList<Vec2> acc = new LinearList<>();
+    while (queue.size() > 0) {
+      iterations++;
+      CurveInterval cb = queue.popLast();
+      CurveInterval ca = queue.popLast();
+
+      //System.out.println(ca + " " + cb + " " + ca.isFlat + " " + cb.isFlat);
+
+      if (!ca.intersects(cb)) {
+        continue;
+      }
+
+      if (ca.isFlat && cb.isFlat) {
+        long size = acc.size();
+        ca.intersections(cb, acc);
+
+        // if we've crossed the magic threshold, check once (and only once) whether they're collinear
+        if (size < MAX_CUBIC_CUBIC_INTERSECTIONS && acc.size() >= MAX_CUBIC_CUBIC_INTERSECTIONS) {
+          Vec2[] is = collinearIntersection(a, b);
+          if (isCollinear(a, b, is)) {
+            return is;
+          }
+        }
+      } else {
+        for (CurveInterval ap : ca.split()) {
+          for (CurveInterval bp : cb.split()) {
+            queue.addLast(ap).addLast(bp);
+          }
+        }
+      }
+    }
+
+    //System.out.println(iterations);
+
+    return normalize(a, b, acc.toArray(Vec2[]::new));
+  }
+
+  ///
+
+  public static Vec2[] intersections(Curve2 a, Curve2 b) {
+    if (!a.bounds().expand(SPATIAL_EPSILON).intersects(b.bounds())) {
+      return new Vec2[0];
+    }
+
+    if (a instanceof Line2) {
+      return normalize(a, b, lineCurve((Line2) a, b));
+    } else if (b instanceof Line2) {
+      Vec2[] result = normalize(b, a, lineCurve((Line2) b, a));
+      for (int i = 0; i < result.length; i++) {
+        result[i] = result[i].swap();
+      }
+      return result;
+    } else {
+      return curveCurve(a, b);
+    }
   }
 
 

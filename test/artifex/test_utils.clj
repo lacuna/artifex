@@ -13,9 +13,8 @@
     Box
     Box2
     Region2
-    Region2$Ring
-    Polygon2$Ring
-    LineSegment2
+    Ring2
+    Line2
     Curve2
     Bezier2
     Region2
@@ -50,13 +49,6 @@
   ([^double x ^double y ^double z ^double w]
    (Vec4. x y z w)))
 
-(defn ring2 [& vs]
-  (->> vs
-    (map #(apply v %))
-    vec
-    io.lacuna.bifurcan.LinearList/from
-    Polygon2$Ring.))
-
 (defn curve
   ([a b]
    (Bezier2/curve a b))
@@ -66,13 +58,22 @@
    (Bezier2/curve a b c d)))
 
 (defn region [rings]
-  (Region2. (map #(Region2$Ring. %) rings)))
+  (Region2. (map #(Ring2. %) rings)))
 
 (defn unvertex [v]
   (condp instance? v
     Vec2 [(.x v) (.y v)]
     Vec3 [(.x v) (.y v) (.z v)]
     Vec4 [(.x v) (.y v) (.z v) (.w v)]))
+
+(defn parse-curve [s]
+  (->> s
+    (re-seq #"=([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)")
+    (map second)
+    (map #(Double/parseDouble %))
+    (partition 2)
+    (map #(apply v %))
+    (apply curve)))
 
 ;;;
 

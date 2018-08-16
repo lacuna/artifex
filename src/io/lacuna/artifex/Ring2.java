@@ -1,18 +1,20 @@
 package io.lacuna.artifex;
 
+import io.lacuna.artifex.utils.Intersections;
+import io.lacuna.artifex.utils.Scalars;
 import io.lacuna.bifurcan.LinearList;
+import io.lacuna.bifurcan.List;
 import io.lacuna.bifurcan.Lists;
 
 import java.util.Arrays;
 
 import static io.lacuna.artifex.Vec.vec;
+import static io.lacuna.artifex.utils.Intersections.*;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static java.lang.Math.abs;
 import static java.lang.Math.signum;
 
 public class Ring2 {
-
-  private static final double TEST_EPSILON = 1e-6;
 
   public enum Location {
     INSIDE,
@@ -40,13 +42,10 @@ public class Ring2 {
     LinearList<Curve2> list = new LinearList<>();
     for (Curve2 a : cs) {
       for (Curve2 b : a.split(a.inflections())) {
+
         list.addLast(b);
         bounds = bounds.union(b.start()).union(b.end());
         signedArea += b.signedArea();
-
-        Vec2 i = b.start();
-        Vec2 j = b.end();
-        signedArea += (i.x * j.y) - (j.x * i.y);
       }
     }
 
@@ -81,13 +80,13 @@ public class Ring2 {
    * @return a unit circle with radius of 1, centered at [0, 0]
    */
   public static Ring2 circle() {
-    // adapted from http://spencermortensen.com/articles/bezier-circle/
-    double c = 0.551915024494;
+    // taken from http://whizkidtech.redprince.net/bezier/circle/kappa/
+    double k = 4.0 / 3.0 * (StrictMath.sqrt(2) - 1);
     return Ring2.of(
-        Bezier2.curve(vec(1, 0), vec(1, c), vec(c, 1), vec(0, 1)),
-        Bezier2.curve(vec(0, 1), vec(-c, 1), vec(-1, c), vec(-1, 0)),
-        Bezier2.curve(vec(-1, 0), vec(-1, -c), vec(-c, -1), vec(0, -1)),
-        Bezier2.curve(vec(0, -1), vec(c, -1), vec(1, -c), vec(1, 0)));
+      Bezier2.curve(vec(1, 0), vec(1, k), vec(k, 1), vec(0, 1)),
+      Bezier2.curve(vec(0, 1), vec(-k, 1), vec(-1, k), vec(-1, 0)),
+      Bezier2.curve(vec(-1, 0), vec(-1, -k), vec(-k, -1), vec(0, -1)),
+      Bezier2.curve(vec(0, -1), vec(k, -1), vec(1, -k), vec(1, 0)));
   }
 
   public Path2 path() {
@@ -108,49 +107,48 @@ public class Ring2 {
   }
 
   public Location test(Vec2 p) {
-    if (!bounds.expand(TEST_EPSILON).contains(p)) {
+
+    if (!bounds.expand(SPATIAL_EPSILON).contains(p)) {
       return Location.OUTSIDE;
     }
 
     Line2 ray = Line2.from(p, vec(bounds.ux + 1, p.y));
     int count = 0;
 
-    // find effective predecessor of the first curve, ignoring all the horizontal lines
-    Curve2 prev = null;
-    for (int i = curves.length - 1; i >= 0; i--) {
-      Curve2 c = curves[i];
-      if (verticalOrientation(c) != 0) {
-        prev = c;
-        break;
+    // since our curves have been split at inflection points, there can only
+    // be a single ray/curve intersection unless the curve is collinear
+    for (Curve2 c : curves) {
+      Box2 b = c.bounds();
+      boolean flat = b.height() == 0;
+
+      //System.out.println(p + " " + b);
+
+      // it's to our right
+      if (p.x <= b.lx) {
+        // check if we intersect within [bottom, top)
+        if (p.y >= b.ly && p.y < b.uy) {
+          //System.out.println("right, incrementing");
+          count++;
+        }
+
+        // we're inside the bounding box
+      } else if (b.expand(vec(SPATIAL_EPSILON, 0)).contains(p)) {
+        Vec2[] is = ray.intersections(c);
+        //Vec2[] is = curveCurve(ray, c);
+
+        if (is.length > 0) {
+          //System.out.println(is[0]);
+          if (is[0].x == 0) {
+            return Location.EDGE;
+          } else if (!flat && p.y < b.uy) {
+            //System.out.println("intersected, incrementing");
+            count++;
+          }
+        }
       }
     }
 
-    for (Curve2 curr : curves) {
-      Vec2[] ts = curr.intersections(ray, TEST_EPSILON);
-
-      // if the ray starts on an edge, short-circuit
-      for (Vec2 i : ts) {
-        //System.out.println(ts.length + " " + i);
-        if (i.y == 0) {
-          return Location.EDGE;
-        }
-      }
-
-      if (ts.length == 1 && ts[0].x == 0) {
-        // make sure it's not a '\/' or '/\' intersection at the vertex
-        if (verticalOrientation(curr) != verticalOrientation(prev)) {
-          count--;
-        }
-        prev = curr;
-
-        // if we're collinear, pretend like our neighbors are collapsed together
-      } else if (ts.length > 1 && curr.type() == Curve2.Type.FLAT) {
-
-      } else {
-        count += ts.length;
-        prev = curr;
-      }
-    }
+    //System.out.println(count);
 
     return count % 2 == 1 ? Location.INSIDE : Location.OUTSIDE;
   }

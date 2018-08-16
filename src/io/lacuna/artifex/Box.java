@@ -90,8 +90,16 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
       && upper().sub(v).every(NOT_NEGATIVE);
   }
 
+  public T clamp(T v) {
+    return v.zip(lower(), Math::max).zip(upper(), Math::min);
+  }
+
   public T size() {
     return upper().sub(lower());
+  }
+
+  public T normalize(T v) {
+    return v.sub(lower()).div(size());
   }
 
   public T lerp(double t) {
@@ -117,11 +125,9 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
 
     T nLower = lower().map(n -> n - t);
     T nUpper = upper().map(n -> n + t);
-    if (nLower.sub(nUpper).any(NOT_NEGATIVE)) {
-      return empty();
-    } else {
-      return construct(nLower, nUpper);
-    }
+    return nUpper.sub(nLower).every(NOT_NEGATIVE)
+      ? construct(nLower, nUpper)
+      : empty();
   }
 
   public U expand(T v) {
@@ -131,11 +137,9 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
 
     T nLower = lower().sub(v);
     T nUpper = upper().add(v);
-    if (nLower.sub(nUpper).any(NOT_NEGATIVE)) {
-      return empty();
-    } else {
-      return construct(nLower, nUpper);
-    }
+    return nUpper.sub(nLower).every(NOT_NEGATIVE)
+      ? construct(nLower, nUpper)
+      : empty();
   }
 
   @Override

@@ -126,30 +126,17 @@ public class Vec2 implements Vec<Vec2> {
     return (a.x * b.y) - (a.y * b.x);
   }
 
-  public static double angleBetween(Vec2 a, Vec2 b) {
-    return angleBetween(a, b, EPSILON);
-  }
-
   /**
    * @return the clockwise angle between the two vectors, which don't have to be normalized
    */
-  public static double angleBetween(Vec2 a, Vec2 b, double epsilon) {
-    Vec2 na = a.norm();
-    Vec2 nb = b.norm();
+  public static double angleBetween(Vec2 a, Vec2 b) {
+    // from section 12 of https://people.eecs.berkeley.edu/~wkahan/Mindless.pdf
+    double theta = StrictMath.atan2(cross(a, b), dot(a, b));
 
-    // this seems to be necessary, probably due to imprecision in Math.sqrt
-    if (Vec.equals(na, nb, epsilon)) {
-      return 0;
+    if (theta > 0) {
+      theta -= Math.PI * 2;
     }
-
-    double theta = acos(Scalars.clamp(-1.0, dot(na, nb), 1.0));
-    if (cross(na, nb) > 0) {
-      theta = (Math.PI * 2) - theta;
-    }
-    if (Scalars.equals(theta, Math.PI * 2, epsilon)) {
-      theta = 0;
-    }
-    return -theta;
+    return theta;
   }
 
   /**

@@ -1,11 +1,14 @@
 package io.lacuna.artifex;
 
+import static io.lacuna.artifex.Vec.vec;
+import static java.lang.Double.NaN;
+
 /**
  * @author ztellman
  */
 public class Box4 extends Box<Vec4, Box4> {
 
-  public static final Box4 EMPTY = new Box4(Vec4.ORIGIN, Vec4.ORIGIN);
+  public static final Box4 EMPTY = new Box4(vec(NaN, NaN, NaN, NaN), vec(NaN, NaN, NaN, NaN));
 
   private final double lx, ly, lz, lw, ux, uy, uz, uw;
 
