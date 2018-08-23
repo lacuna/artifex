@@ -132,7 +132,7 @@
 ;;;
 
 (defspec test-region-ops 1e6
-  (prop/for-all [descriptor (->> (gen-compound-shape 3)
+  (prop/for-all [descriptor (->> (gen-compound-shape 5)
                               (gen/fmap simplify)
                               (gen/such-that #(not= % [:none])))
                  points (gen/list (gen/tuple (gen-float 0 1) (gen-float 0 1)))
