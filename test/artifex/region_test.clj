@@ -6,17 +6,21 @@
    [clojure.test.check.properties :as prop]
    [clojure.test.check.clojure-test :as ct :refer (defspec)])
   (:import
+   [io.lacuna.bifurcan
+    LinearList
+    List]
    [io.lacuna.artifex.utils
     Equations
     Scalars
     EdgeList
     Intersections]
+   [io.lacuna.artifex.utils.regions
+    Clip]
    [io.lacuna.artifex
     Bezier2
     Curve2
     Region2
     Ring2
-    Ring2$Location
     Vec2
     Matrix3]))
 
@@ -48,8 +52,18 @@
     x
     (let [[type & args] x
           args (map simplify args)]
-      (if (= args [[:none] [:none]])
+      (cond
+        (= args [[:none] [:none]])
         [:none]
+
+        (and
+          (some #{[:none]} args)
+          (= type :union))
+        (->> args
+          (remove #{[:none]})
+          first)
+
+        :else
         (vec (list* type args))))))
 
 (defn gen-compound-shape [depth]
@@ -61,8 +75,8 @@
     (let [gen (gen-compound-shape (dec depth))]
       (gen/one-of
         [(gen-op :union gen)
-         #_(gen-op :intersection gen)
-         #_(gen-op :difference gen)]))))
+         (gen-op :intersection gen)
+         (gen-op :difference gen)]))))
 
 (defn matrix [[tx ty sx sy]]
   (.mul
@@ -93,10 +107,10 @@
 (defn test-point [[type & args :as descriptor] v]
   (case type
     :none             false
-    (:square :circle) (condp = (.test (parse descriptor) v)
-                        Ring2$Location/INSIDE  true
-                        Ring2$Location/OUTSIDE false
-                        Ring2$Location/EDGE    nil)
+    (:square :circle) (let [r (.test (parse descriptor) v)]
+                        (if (.curve r)
+                          nil
+                          (.inside r)))
     :union            (->> args
                         (map #(test-point % v))
                         (apply union))
@@ -108,20 +122,20 @@
                         (apply intersection))))
 
 (defn compare-outcomes [x v]
-  [(test-point x v) (.test (parse x) v)])
+  [(test-point x v) (.inside (.test (parse x) v))])
 
 (defn spread [^Vec2 v delta]
   (for [x [-1 0 1]
-        y [#_-1 0 #_1]]
+        y [-1 0 1]]
     (.add v (Vec2. (* x delta) (* y delta)))))
 
 ;;;
 
 (defspec test-region-ops 1e6
-  (prop/for-all [descriptor (->> (gen-compound-shape 2)
+  (prop/for-all [descriptor (->> (gen-compound-shape 3)
                               (gen/fmap simplify)
                               (gen/such-that #(not= % [:none])))
-                 ;;points (gen/list (gen/tuple (gen-float 0 1) (gen-float 0 1)))
+                 points (gen/list (gen/tuple (gen-float 0 1) (gen-float 0 1)))
                  ]
     #_(prn descriptor)
     #_(try
@@ -132,8 +146,8 @@
         (prn 'fail)
         false))
     (let [^Region2 r (parse descriptor)]
-      (not (empty? (.rings r)))
-      #_(if (every?
+      #_(not (empty? (.rings r)))
+      (if (every?
             (fn [[x y]]
               (let [v (Vec2. x y)]
                 (if-let [expected (test-point descriptor v)]
@@ -150,7 +164,7 @@
                   true)))
             points)
         (do
-          #_(prn '.)
+          (prn '.)
           true)
         (do
           (prn 'fail)

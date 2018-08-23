@@ -237,26 +237,6 @@ public class Bezier2 {
     }
 
     @Override
-    public int hashCode() {
-      if (hash == -1) {
-        hash = Objects.hash(p0, p1, p2);
-      }
-      return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      if (obj == this) {
-        return true;
-      } else if (obj instanceof QuadraticBezier2) {
-        QuadraticBezier2 b = (QuadraticBezier2) obj;
-        return p0.equals(b.p0) && p1.equals(b.p1) && p2.equals(b.p2);
-      } else {
-        return false;
-      }
-    }
-
-    @Override
     public String toString() {
       return "p0=" + p0 + ", p1=" + p1 + ", p2=" + p2;
     }
@@ -465,26 +445,6 @@ public class Bezier2 {
       }
 
       return inflections;
-    }
-
-    @Override
-    public int hashCode() {
-      if (hash == -1) {
-        hash = Objects.hash(p0, p1, p2, p3);
-      }
-      return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      if (obj == this) {
-        return true;
-      } else if (obj instanceof CubicBezier2) {
-        CubicBezier2 b = (CubicBezier2) obj;
-        return p0.equals(b.p0) && p1.equals(b.p1) && p2.equals(b.p2) && p3.equals(b.p3);
-      } else {
-        return false;
-      }
     }
 
     @Override

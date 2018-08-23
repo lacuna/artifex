@@ -1,7 +1,6 @@
 package io.lacuna.artifex.utils;
 
 import io.lacuna.artifex.*;
-import io.lacuna.artifex.utils.regions.Overlay;
 import io.lacuna.bifurcan.*;
 
 import java.util.Iterator;
@@ -10,7 +9,6 @@ import java.util.function.IntPredicate;
 import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.utils.Scalars.EPSILON;
 import static io.lacuna.artifex.utils.Scalars.angleEquals;
-import static io.lacuna.artifex.utils.Scalars.inside;
 
 /**
  * An implementation of a doubly-connected edge list.  Since this is an inherently mutable data structure, it is
@@ -52,7 +50,7 @@ public class EdgeList {
         pa = a.position(Scalars.clamp(EPSILON, a.nearestPoint(pb), 1));
       }
 
-      if (!Vec.equals(pa, pb, Overlay.SPATIAL_EPSILON)) {
+      if (!Vec.equals(pa, pb, Intersections.SPATIAL_EPSILON)) {
         Vec2 da = pa.sub(origin).norm();
         Vec2 db = pb.sub(origin).norm();
         double cross = Vec2.cross(da, db);

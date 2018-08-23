@@ -23,9 +23,8 @@ public class Intersections {
 
   // utilities
 
-  public static final double PARAMETRIC_RESOLUTION = 1e-6;
   public static final double PARAMETRIC_EPSILON = 1e-6;
-  public static final double SPATIAL_EPSILON = 1e-6;
+  public static final double SPATIAL_EPSILON = 1e-10;
 
   public static final int MAX_CUBIC_CUBIC_INTERSECTIONS = 9;
 
@@ -51,7 +50,7 @@ public class Intersections {
       this.pLo = pLo;
       this.pHi = pHi;
 
-      if (Vec.equals(pLo, pHi, SPATIAL_EPSILON) || (tHi - tLo) < PARAMETRIC_RESOLUTION) {
+      if (Vec.equals(pLo, pHi, SPATIAL_EPSILON) || (tHi - tLo) < PARAMETRIC_EPSILON) {
         this.isFlat = true;
 
       } else if (curve instanceof Line2) {
@@ -168,11 +167,10 @@ public class Intersections {
       return false;
     }
 
-    Box2 bounds = box(is[0], is[1]);
     for (int i = 0; i < MAX_CUBIC_CUBIC_INTERSECTIONS + 1; i++) {
-      Vec2 t = bounds.lerp((double) i / MAX_CUBIC_CUBIC_INTERSECTIONS);
-      Vec2 pa = a.position(t.x);
-      Vec2 pb = b.position(t.y);
+      double t = (double) i / MAX_CUBIC_CUBIC_INTERSECTIONS;
+      Vec2 pa = a.position(Scalars.lerp(is[0].x, is[1].x, t));
+      Vec2 pb = b.position(Scalars.lerp(is[0].y, is[1].y, t));
       if (!Vec.equals(pa, pb, SPATIAL_EPSILON)) {
         return false;
       }

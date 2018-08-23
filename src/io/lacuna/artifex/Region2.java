@@ -1,10 +1,10 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.Ring2.Location;
+import io.lacuna.artifex.Ring2.Result;
 import io.lacuna.artifex.utils.EdgeList;
+import io.lacuna.artifex.utils.regions.Clip;
 import io.lacuna.artifex.utils.regions.Hulls;
 import io.lacuna.artifex.utils.regions.Monotonic;
-import io.lacuna.artifex.utils.regions.Operations;
 import io.lacuna.artifex.utils.regions.Triangles;
 import io.lacuna.bifurcan.LinearList;
 import io.lacuna.bifurcan.Lists;
@@ -55,8 +55,8 @@ public class Region2 {
 
   ///
 
-  private final Ring2[] rings;
-  private final Box2 bounds;
+  public final Ring2[] rings;
+  public final Box2 bounds;
 
   public Region2(Iterable<Ring2> rings) {
     this(LinearList.from(rings).toArray(Ring2[]::new));
@@ -85,21 +85,23 @@ public class Region2 {
     return bounds;
   }
 
-  public Location test(Vec2 p) {
+  public Result test(Vec2 p) {
     for (Ring2 r : rings) {
-      Location loc = r.test(p);
-      if (loc == Location.INSIDE) {
-        return r.isClockwise ? Location.OUTSIDE : Location.INSIDE;
-      } else if (loc == Location.EDGE) {
-        return Location.EDGE;
+      Result result = r.test(p);
+      if (result.inside) {
+        if (result.curve == null && r.isClockwise) {
+          return result.inside ? Result.OUTSIDE : Result.INSIDE;
+        } else {
+          return result;
+        }
       }
     }
 
-    return Location.OUTSIDE;
+    return Result.OUTSIDE;
   }
 
   public boolean contains(Vec2 p) {
-    return test(p) != Location.OUTSIDE;
+    return test(p).inside;
   }
 
   /// transforms and set operations
@@ -109,15 +111,15 @@ public class Region2 {
   }
 
   public Region2 intersection(Region2 region) {
-    return Operations.intersection(this, region);
+    return Clip.intersection(this, region);
   }
 
   public Region2 union(Region2 region) {
-    return Operations.union(this, region);
+    return Clip.union(this, region);
   }
 
   public Region2 difference(Region2 region) {
-    return Operations.difference(this, region);
+    return Clip.difference(this, region);
   }
 
   /// triangulation

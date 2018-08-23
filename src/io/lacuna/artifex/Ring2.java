@@ -7,6 +7,7 @@ import io.lacuna.bifurcan.List;
 import io.lacuna.bifurcan.Lists;
 
 import java.util.Arrays;
+import java.util.Comparator;
 
 import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.utils.Intersections.*;
@@ -16,10 +17,30 @@ import static java.lang.Math.signum;
 
 public class Ring2 {
 
-  public enum Location {
-    INSIDE,
-    OUTSIDE,
-    EDGE
+  public static class Result {
+    public static final Result INSIDE = new Result(true, null);
+    public static final Result OUTSIDE = new Result(false, null);
+
+    public final boolean inside;
+    public final Curve2 curve;
+
+    private Result(boolean inside, Curve2 curve) {
+      this.inside = inside;
+      this.curve = curve;
+    }
+
+    public Result(Curve2 curve) {
+      this(true, curve);
+    }
+
+    @Override
+    public String toString() {
+      if (inside) {
+        return curve == null ? "INSIDE" : "EDGE: " + curve;
+      } else {
+        return "OUTSIDE";
+      }
+    }
   }
 
   public final Curve2[] curves;
@@ -106,10 +127,10 @@ public class Ring2 {
     return abs(delta) < EPSILON ? 0 : (int) signum(delta);
   }
 
-  public Location test(Vec2 p) {
+  public Result test(Vec2 p) {
 
     if (!bounds.expand(SPATIAL_EPSILON).contains(p)) {
-      return Location.OUTSIDE;
+      return Result.OUTSIDE;
     }
 
     Line2 ray = Line2.from(p, vec(bounds.ux + 1, p.y));
@@ -121,10 +142,10 @@ public class Ring2 {
       Box2 b = c.bounds();
       boolean flat = b.height() == 0;
 
-      //System.out.println(p + " " + b);
+      //System.out.println(p + " " + b + " " + c);
 
       // it's to our right
-      if (p.x <= b.lx) {
+      if (p.x < b.lx) {
         // check if we intersect within [bottom, top)
         if (p.y >= b.ly && p.y < b.uy) {
           //System.out.println("right, incrementing");
@@ -133,24 +154,29 @@ public class Ring2 {
 
         // we're inside the bounding box
       } else if (b.expand(vec(SPATIAL_EPSILON, 0)).contains(p)) {
-        Vec2[] is = ray.intersections(c);
-        //Vec2[] is = curveCurve(ray, c);
+        Vec2 i = Arrays.stream(lineCurve(ray, c))
+          .map(v -> v.map(n -> Intersections.round(n, Intersections.PARAMETRIC_EPSILON)))
+          .filter(PARAMETRIC_BOUNDS::contains)
+          .min(Comparator.comparingDouble(v -> v.x))
+          .orElse(null);
 
-        if (is.length > 0) {
-          //System.out.println(is[0]);
-          if (is[0].x == 0) {
-            return Location.EDGE;
+        if (i != null) {
+          //System.out.println(i);
+          if (i.x == 0) {
+            return new Result(c);
           } else if (!flat && p.y < b.uy) {
             //System.out.println("intersected, incrementing");
             count++;
           }
+        } else {
+          //System.out.println("no intersection");
         }
       }
     }
 
     //System.out.println(count);
 
-    return count % 2 == 1 ? Location.INSIDE : Location.OUTSIDE;
+    return count % 2 == 1 ? Result.INSIDE : Result.OUTSIDE;
   }
 
   public Ring2 transform(Matrix3 m) {

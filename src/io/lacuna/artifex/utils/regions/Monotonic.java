@@ -1,13 +1,10 @@
 package io.lacuna.artifex.utils.regions;
 
-import io.lacuna.artifex.Curve2;
-import io.lacuna.artifex.Region2;
 import io.lacuna.artifex.Vec2;
 import io.lacuna.artifex.utils.EdgeList;
 import io.lacuna.artifex.utils.EdgeList.HalfEdge;
 import io.lacuna.bifurcan.FloatMap;
 import io.lacuna.bifurcan.IMap;
-import io.lacuna.bifurcan.LinearList;
 import io.lacuna.bifurcan.LinearMap;
 
 import java.util.Comparator;

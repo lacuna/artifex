@@ -9,6 +9,7 @@ import static java.lang.StrictMath.*;
  */
 public class Equations {
 
+  private static final double DISCRIMINANT_EPSILON = 1e-10;
   private static final double SOLUTION_EPSILON = 1e-8;
 
   // adapted from https://github.com/paperjs/paper.js/blob/develop/src/util/Numerical.js
@@ -32,7 +33,7 @@ public class Equations {
     }
     double exponent = getExponent(max);
 
-    return (exponent < -8 || exponent > 8) ? Math.pow(2, exponent) : 1;
+    return (exponent < -8 || exponent > 8) ? Math.pow(2, -exponent) : 1;
   }
 
   private static double[] split(double n) {
@@ -89,30 +90,14 @@ public class Equations {
     }
 
     b *= -0.5;
+
+    double k = normalizationFactor(a, b, c);
+    a *= k;
+    b *= k;
+    c *= k;
     double D = discriminant(a, b, c);
 
-    if (Scalars.inside(-EPSILON, D, EPSILON)) {
-
-      double k = normalizationFactor(a, b, c);
-      if (k != 1) {
-        a *= k;
-        b *= k;
-        c *= k;
-        D = discriminant(a, b, c);
-      }
-    }
-
-    // This is the one major change from the paper.js implementation, because it was distressingly common to miss
-    // the inflection point by an infinitesimal value, causing our line/curve intersections to miss valid intersection
-    // points.  However, by nudging the values we now have to check whether our solutions are within an acceptable
-    // tolerance (specified by SOLUTION_EPSILON).
-    if (D == 0) {
-      D = MACHINE_EPSILON;
-    } else if (-EPSILON <= D && D <= 0) {
-      D = -D;
-    }
-
-    if (D > 0) {
+    if (D >= -DISCRIMINANT_EPSILON) {
       double
         Q = D < 0 ? 0 : sqrt(D),
         R = b + (b < 0 ? -Q : Q);
@@ -128,6 +113,8 @@ public class Equations {
       int writeIdx = 0;
       for (int readIdx = 0; readIdx < 2; readIdx++) {
         double x = acc[readIdx];
+
+        // since the tolerance for the discriminant is fairly large, we check our work
         double y = (a * x * x) + (-2 * b * x) + c;
         if (abs(y) < SOLUTION_EPSILON) {
           acc[writeIdx++] = x;

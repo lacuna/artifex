@@ -135,23 +135,6 @@ public class Line2 implements Curve2 {
   }
 
   @Override
-  public int hashCode() {
-    return Hashes.hash(ax, ay, bx, by);
-  }
-
-  @Override
-  public boolean equals(Object obj) {
-    if (obj == this) {
-      return true;
-    } else if (obj instanceof Line2) {
-      Line2 s = (Line2) obj;
-      return ax == s.ax && ay == s.ay && bx == s.bx && by == s.by;
-    } else {
-      return false;
-    }
-  }
-
-  @Override
   public String toString() {
     return "a=" + start() + ", b=" + end();
   }

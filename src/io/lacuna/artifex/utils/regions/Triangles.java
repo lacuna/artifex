@@ -1,6 +1,5 @@
 package io.lacuna.artifex.utils.regions;
 
-import io.lacuna.artifex.Line2;
 import io.lacuna.artifex.Vec2;
 import io.lacuna.artifex.utils.EdgeList;
 import io.lacuna.artifex.utils.EdgeList.HalfEdge;
@@ -11,7 +10,6 @@ import java.util.Comparator;
 
 import static io.lacuna.artifex.Vec2.angleBetween;
 import static io.lacuna.artifex.utils.regions.Hulls.INSIDE;
-import static io.lacuna.artifex.utils.regions.Hulls.OUTSIDE;
 
 /**
  * @author ztellman
