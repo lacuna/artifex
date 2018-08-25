@@ -14,12 +14,6 @@ import static java.lang.Math.abs;
  */
 public interface Curve2 {
 
-  enum Type {
-    CONVEX,
-    CONCAVE,
-    FLAT
-  }
-
   /**
    * @param t a parametric point on the curve, not necessarily within [0, 1]
    * @return the interpolated position on the curve
@@ -61,6 +55,8 @@ public interface Curve2 {
    */
   Curve2[] split(double t);
 
+  boolean isFlat(double epsilon);
+
   /**
    * @param tMin the lower parametric bound
    * @param tMax the upper parametric bound
@@ -77,14 +73,12 @@ public interface Curve2 {
     if (tMin == 0 && tMax == 1) {
       return this;
     } else if (tMin == 0) {
-      c = split(tMax)[0];
+      return split(tMax)[0];
     } else if (tMax == 1) {
-      c = split(tMin)[1];
+      return split(tMin)[1];
     } else {
-      c = split(tMin)[1].split((tMax - tMin) / (1 - tMin))[0];
+      return split(tMin)[1].split((tMax - tMin) / (1 - tMin))[0].endpoints(position(tMin), position(tMax));
     }
-
-    return c.endpoints(position(tMin), position(tMax));
   }
 
   /**
@@ -92,78 +86,33 @@ public interface Curve2 {
    * @return an array of curves, split at the specified points.
    */
   default Curve2[] split(double[] ts) {
-    /*ts = ts.clone();
+
+    if (ts.length == 0) {
+      return new Curve2[] {this};
+    }
+
+    ts = ts.clone();
     Arrays.sort(ts);
 
-    int offset = 0;
-    int len = 0;
-    if (ts.length > 0) {
-      offset = ts[0] == 0 ? 1 : 0;
-      len = ts.length - offset;
-      if (ts[ts.length - 1] == 1) {
-        len--;
-      }
-    }
+    int offset = ts[0] == 0 ? 1 : 0;
+    int len = (ts.length - offset) - (ts[ts.length - 1] == 1 ? 1 : 0);
+    System.arraycopy(ts, offset, ts, 0, len);
 
     if (len == 0) {
       return new Curve2[] {this};
     } else if (len == 1) {
-      return split(ts[offset]);
+      return split(ts[0]);
     }
 
     Curve2[] result = new Curve2[len + 1];
-    result[0] = range(0, ts[1]);
+
+    result[0] = range(0, ts[0]);
     for (int i = 0; i < len - 1; i++) {
       result[i + 1] = range(ts[i], ts[i + 1]);
     }
     result[len] = range(ts[len - 1], 1);
 
-    return result;*/
-
-    ts = ts.clone();
-      Arrays.sort(ts);
-
-      int offset = 0;
-      int len = 0;
-      if (ts.length > 0) {
-        offset = ts[0] == 0 ? 1 : 0;
-        len = ts.length - offset;
-        if (ts[ts.length - 1] == 1) {
-          len--;
-        }
-      }
-
-      if (len == 0) {
-        return new Curve2[] {this};
-      } else if (len == 1) {
-        return split(ts[offset]);
-      }
-
-      // we want the endpoints of the split curves to *exactly* equal the values returned by position()
-      Vec2[] endpoints = new Vec2[len + 2];
-      endpoints[0] = start();
-      for (int i = 0; i < len; i++) {
-        endpoints[i + 1] = position(ts[offset + i]);
-      }
-      endpoints[endpoints.length - 1] = end();
-
-      Curve2[] result = new Curve2[len + 1];
-      Curve2 c = this;
-      double prev = 0;
-      for (int i = 0; i < len; i++) {
-        double p = ts[i + offset];
-        Curve2[] parts = c.split((p - prev) / (1 - prev));
-        prev = p;
-
-        //assert !Vec.equals(endpoints[i], endpoints[i + 1], EPSILON);
-        result[i] = parts[0].endpoints(endpoints[i], endpoints[i + 1]);
-        c = parts[1];
-      }
-      result[len] = c.endpoints(endpoints[len], endpoints[len + 1]);
-
-      return result;
-
-
+    return result;
   }
 
   /**
@@ -179,8 +128,6 @@ public interface Curve2 {
     }
     return bounds;
   }
-
-  Type type();
 
   Vec2[] subdivide(double error);
 

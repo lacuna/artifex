@@ -130,6 +130,11 @@ public class Vec2 implements Vec<Vec2> {
    * @return the clockwise angle between the two vectors, which don't have to be normalized
    */
   public static double angleBetween(Vec2 a, Vec2 b) {
+    // pseudo-normalize the vectors
+    double k = Scalars.normalizationFactor(a.x, a.y, b.x, b.y);
+    a = a.mul(k);
+    b = b.mul(k);
+
     // from section 12 of https://people.eecs.berkeley.edu/~wkahan/Mindless.pdf
     double theta = StrictMath.atan2(cross(a, b), dot(a, b));
 

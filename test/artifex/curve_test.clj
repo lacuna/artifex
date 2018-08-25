@@ -38,7 +38,7 @@
     (let [linear (random-curve 2 -1 1)
           quad   (random-curve 3 -1 1)
           cubic  (random-curve 4 -1 1)
-          splits (->> (range 1 10) (map #(/ 1 %)) (map double))]
+          splits (->> (range 2 10) (map #(/ 1 %)) (map double))]
       (doseq [t splits]
         (doseq [c [linear quad cubic]]
           (split-and-check c t 100))))))

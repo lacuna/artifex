@@ -30,9 +30,39 @@ public class Intersections {
 
   public static final Box2 PARAMETRIC_BOUNDS = box(vec(0, 0), vec(1, 1));
 
+  //
+
   private static double signedDistance(Vec2 p, Vec2 a, Vec2 b) {
     Vec2 d = b.sub(a);
     return (cross(p, d) + cross(b, a)) / d.length();
+  }
+
+  private static Vec2[] convexHull(Vec2 a, Vec2 b, Vec2... points) {
+    Vec2[] mapped = new Vec2[points.length];
+    for (int i = 0; i < points.length; i++) {
+      mapped[i] = vec((double) i / (points.length - 1), signedDistance(points[i], a, b));
+    }
+
+    Vec2[] result = new Vec2[points.length + 1];
+
+    int idx = 0;
+    Vec2 v = mapped[mapped.length - 1].sub(mapped[0]);
+
+    result[idx++] = mapped[0];
+    for (int i = 1; i < points.length; i++) {
+      if (cross(v, mapped[i].sub(mapped[0])) < 0) {
+        result[idx++] = mapped[i];
+      }
+    }
+
+    v = v.negate();
+    for (int i = points.length - 1; i >= 0; i--) {
+      if (cross(v, mapped[i].sub(mapped[mapped.length - 1])) < 0) {
+        result[idx++] = mapped[i];
+      }
+    }
+
+    return result;
   }
 
   //
@@ -49,24 +79,9 @@ public class Intersections {
       this.tHi = tHi;
       this.pLo = pLo;
       this.pHi = pHi;
-
-      if (Vec.equals(pLo, pHi, SPATIAL_EPSILON) || (tHi - tLo) < PARAMETRIC_EPSILON) {
-        this.isFlat = true;
-
-      } else if (curve instanceof Line2) {
-        this.isFlat = true;
-
-      } else if (curve instanceof QuadraticBezier2) {
-        QuadraticBezier2 b = (QuadraticBezier2) curve.range(tLo, tHi);
-        double d = signedDistance(b.p1, pLo, pHi);
-        this.isFlat = abs(d / 2) < SPATIAL_EPSILON;
-
-      } else {
-        CubicBezier2 b = (CubicBezier2) curve.range(tLo, tHi);
-        double d1 = signedDistance(b.p1, pLo, pHi);
-        double d2 = signedDistance(b.p2, pLo, pHi);
-        this.isFlat = abs(d1 * 3 / 4.0) < SPATIAL_EPSILON && abs(d2 * 3 / 4.0) < SPATIAL_EPSILON;
-      }
+      this.isFlat = Vec.equals(pLo, pHi, SPATIAL_EPSILON)
+        || (tHi - tLo) < PARAMETRIC_EPSILON
+        || curve.range(tLo, tHi).isFlat(SPATIAL_EPSILON);
     }
 
     public Box2 bounds() {
@@ -126,20 +141,9 @@ public class Intersections {
     }
 
     public void intersections(CurveInterval c, IList<Vec2> acc) {
-      Curve2 a = isFlat ? Line2.from(pLo, pHi) : curve;
-      Curve2 b = c.isFlat ? Line2.from(c.pLo, c.pHi) : c.curve;
-
-      if (isFlat) {
-        for (Vec2 i : lineCurve((Line2) a, b)) {
-          if (PARAMETRIC_BOUNDS.expand(PARAMETRIC_EPSILON).contains(i)) {
-            acc.addLast(Vec.lerp(vec(tLo, c.tLo), vec(tHi, c.tHi), i));
-          }
-        }
-      } else {
-        for (Vec2 i : lineCurve((Line2) b, a)) {
-          if (PARAMETRIC_BOUNDS.expand(PARAMETRIC_EPSILON).contains(i)) {
-            acc.addLast(Vec.lerp(vec(tLo, c.tLo), vec(tHi, c.tHi), i.swap()));
-          }
+      for (Vec2 i : lineLine(Line2.from(pLo, pHi), Line2.from(c.pLo, c.pHi))) {
+        if (PARAMETRIC_BOUNDS.expand(PARAMETRIC_EPSILON).contains(i)) {
+          acc.addLast(Vec.lerp(vec(tLo, c.tLo), vec(tHi, c.tHi), i));
         }
       }
     }
@@ -266,7 +270,7 @@ public class Intersections {
   public static Vec2[] lineCurve(Line2 a, Curve2 b) {
     if (b instanceof Line2) {
       return lineLine(a, (Line2) b);
-    } else if (b.type() == Curve2.Type.FLAT) {
+    } else if (b.isFlat(SPATIAL_EPSILON)) {
       return lineLine(a, Line2.from(b.start(), b.end()));
     } else if (b instanceof QuadraticBezier2) {
       return lineQuadratic(a, (QuadraticBezier2) b);

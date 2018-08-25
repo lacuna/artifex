@@ -1,5 +1,9 @@
 package io.lacuna.artifex.utils;
 
+import static java.lang.StrictMath.abs;
+import static java.lang.StrictMath.getExponent;
+import static java.lang.StrictMath.max;
+
 /**
  * @author ztellman
  */
@@ -43,6 +47,19 @@ public class Scalars {
     } else {
       return n;
     }
+  }
+
+  public static double normalizationFactor(double a, double b, double c, double d) {
+    double exponent = getExponent(max(max(a, b), max(c, d)));
+    return (exponent < -8 || exponent > 8) ? Math.pow(2, -exponent) : 1;
+  }
+
+  public static double normalizationFactor(double a, double b, double c) {
+    return normalizationFactor(a, b, c, Double.NEGATIVE_INFINITY);
+  }
+
+  public static double normalizationFactor(double a, double b) {
+    return normalizationFactor(a, b, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY);
   }
 
   public static double max(double a, double b) {

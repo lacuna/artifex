@@ -17,44 +17,6 @@ import java.util.Comparator;
  */
 public class Region2 {
 
-  public static class Interior {
-    public final Vec2 a, b, c;
-
-    public Interior(Vec2 a, Vec2 b, Vec2 c) {
-      this.a = a;
-      this.b = b;
-      this.c = c;
-    }
-  }
-
-  public static class Exterior {
-    public final Curve2 edge;
-    public final Vec2 vertex;
-
-    public Exterior(Curve2 edge, Vec2 vertex) {
-      this.edge = edge;
-      this.vertex = vertex;
-    }
-
-    public boolean isConvex() {
-      return vertex == null;
-    }
-  }
-
-  public static class Triangulation {
-    public final Exterior[][] exteriors;
-    public final Interior[][] interiors;
-
-    public Triangulation(Exterior[][] exteriors, Interior[][] interiors) {
-      this.exteriors = exteriors;
-      this.interiors = interiors;
-    }
-  }
-
-
-
-  ///
-
   public final Ring2[] rings;
   public final Box2 bounds;
 
@@ -89,11 +51,9 @@ public class Region2 {
     for (Ring2 r : rings) {
       Result result = r.test(p);
       if (result.inside) {
-        if (result.curve == null && r.isClockwise) {
-          return result.inside ? Result.OUTSIDE : Result.INSIDE;
-        } else {
-          return result;
-        }
+        return result.curve == null && r.isClockwise
+          ? Result.OUTSIDE
+          : result;
       }
     }
 
@@ -120,27 +80,6 @@ public class Region2 {
 
   public Region2 difference(Region2 region) {
     return Clip.difference(this, region);
-  }
-
-  /// triangulation
-
-  public Ring2[] triangulated() {
-    EdgeList l = new EdgeList();
-    for (Ring2 r : rings) {
-      for (Curve2 c : r.curves) {
-        l.add(c, Hulls.INSIDE, Hulls.OUTSIDE);
-      }
-    }
-
-    Hulls.create(l);
-    Monotonic.monotonize(l);
-    Triangles.triangulate(l);
-
-    return l.faces().stream()
-      .map(EdgeList.HalfEdge::face)
-      .map(LinearList::from)
-      .map(edges -> Ring2.of(edges.stream().map(e -> e.curve).toArray(Curve2[]::new)))
-      .toArray(Ring2[]::new);
   }
 
 }

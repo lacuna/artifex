@@ -21,7 +21,6 @@
              (map #(apply curve (map (partial apply v) %)))
              (apply f)
              (mapcat unvertex))]
-    (prn vs)
     (and (= (count expected) (count vs))
       (->> (map vector vs expected)
         (every? #(Scalars/equals (first %) (second %) Intersections/SPATIAL_EPSILON))))))
@@ -36,10 +35,6 @@
     [0.5 0.5]
     [[0 0] [1 1]]
     [[1 0] [0 1]]
-
-    [2 -1]
-    [[0 0] [1 1]]
-    [[3 1] [4 0]]
 
     [0.5 0.5]
     [[0 0.5] [1 0.5]]
@@ -61,7 +56,7 @@
 (defn quantile [ary q]
   (aget ary (int (* (dec (alength ary)) q))))
 
-(def n 1e8)
+(def n 1e5)
 
 (deftest test-random-collinear-curves
   (doseq [degree [2 3 4]]
@@ -106,28 +101,27 @@
 
 (deftest test-random-intersections
   (doall
-    (for [a-degree [2 #_3 #_4]
-          b-degree [#_2 3 4]
+    (for [a-degree [2 3 4]
+          b-degree [2 3 4]
           :when    (<= a-degree b-degree)]
       (let [l (java.util.ArrayList.)]
-        (dotimes [_ n]
-          (let [^Curve2 a     (random-curve a-degree 0 1)
-                ^Curve2 b     (random-curve b-degree 0 1)
-                intersections (.intersections a b)]
-            (doseq [^Vec2 i intersections]
-              (let [u (.position a (.x i))
-                    v (.position b (.y i))
-                    dist (.length (.sub u v))]
-                (.add l [dist (when (< 1e-5 dist)
-                                [a b])])))))
+        (time
+          (dotimes [_ n]
+            (let [^Curve2 a     (random-curve a-degree 0 1)
+                  ^Curve2 b     (random-curve b-degree 0 1)
+                  intersections (.intersections a b)]
+              (doseq [^Vec2 i intersections]
+                (let [u (.position a (.x i))
+                      v (.position b (.y i))
+                      dist (.length (.sub u v))]
+                  (.add l [dist (when (< 1e-5 dist)
+                                  [a b])]))))))
 
         (let [ary (.toArray l)]
           (Arrays/sort ary (comparator #(< (first %1) (first %2))))
           (when-not (empty? ary)
-            (prn a-degree b-degree
-              (count ary)
-              (first (quantile ary 0.99999))
-              (first (quantile ary 0.999)))
+            (prn a-degree b-degree)
+            (prn (count ary) (first (quantile ary 0.99999)) (first (quantile ary 0.999)))
             (prn (last ary))
             (prn)
             (is (< (first (quantile ary 0.99999)) 1e-6) (pr-str (last ary)))

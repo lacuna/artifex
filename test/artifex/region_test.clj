@@ -131,27 +131,18 @@
 
 ;;;
 
-(defspec test-region-ops 1e6
-  (prop/for-all [descriptor (->> (gen-compound-shape 5)
+(defspec test-region-ops 1e5
+  (prop/for-all [descriptor (->> (gen-compound-shape 2)
                               (gen/fmap simplify)
                               (gen/such-that #(not= % [:none])))
                  points (gen/list (gen/tuple (gen-float 0 1) (gen-float 0 1)))
                  ]
-    #_(prn descriptor)
-    #_(try
-      (parse descriptor)
-      #_(prn '.)
-      true
-      (catch Exception e
-        (prn 'fail)
-        false))
     (let [^Region2 r (parse descriptor)]
-      #_(not (empty? (.rings r)))
       (if (every?
             (fn [[x y]]
               (let [v (Vec2. x y)]
                 (if-let [expected (test-point descriptor v)]
-                  (->> (spread v (/ 0.1 resolution))
+                  (->> (spread v 1e-2)
                     (some #(= expected (.contains r %)))
                     boolean)
                   true)))
@@ -164,7 +155,7 @@
                   true)))
             points)
         (do
-          (prn '.)
+          #_(prn '.)
           true)
         (do
           (prn 'fail)

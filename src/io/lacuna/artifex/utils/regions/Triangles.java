@@ -1,21 +1,11 @@
 package io.lacuna.artifex.utils.regions;
 
-import io.lacuna.artifex.Vec2;
-import io.lacuna.artifex.utils.EdgeList;
-import io.lacuna.artifex.utils.EdgeList.HalfEdge;
-import io.lacuna.artifex.utils.Scalars;
-import io.lacuna.bifurcan.*;
-
-import java.util.Comparator;
-
-import static io.lacuna.artifex.Vec2.angleBetween;
-import static io.lacuna.artifex.utils.regions.Hulls.INSIDE;
-
 /**
  * @author ztellman
  */
 public class Triangles {
 
+  /*
   private static final Comparator<Vec2> COMPARATOR = Comparator
     .comparingDouble((Vec2 a) -> -a.y)
     .thenComparingDouble(a -> a.x);

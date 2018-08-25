@@ -1,23 +1,11 @@
 package io.lacuna.artifex.utils.regions;
 
-import io.lacuna.artifex.Vec2;
-import io.lacuna.artifex.utils.EdgeList;
-import io.lacuna.artifex.utils.EdgeList.HalfEdge;
-import io.lacuna.bifurcan.FloatMap;
-import io.lacuna.bifurcan.IMap;
-import io.lacuna.bifurcan.LinearMap;
-
-import java.util.Comparator;
-import java.util.PriorityQueue;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-
-import static io.lacuna.artifex.utils.regions.Hulls.INSIDE;
-
 /**
  * @author ztellman
  */
 public class Monotonic {
+
+  /*
 
   private static final Comparator<Vec2> COMPARATOR = Comparator
     .comparingDouble((Vec2 a) -> -a.y)
@@ -31,12 +19,12 @@ public class Monotonic {
     }
 
     private static double key(HalfEdge e) {
-      return Math.min(e.curve.start().x, e.curve.end().x);
+      return Math.min(e.origin.x, e.twin.origin.x);
     }
 
     public void add(HalfEdge e) {
       map.put(key(e), e);
-      helper.put(e, e.start());
+      helper.put(e, e.origin);
     }
 
     public void helper(HalfEdge a, Vec2 v) {
@@ -78,9 +66,9 @@ public class Monotonic {
   }
 
   private static VertexType vertexType(HalfEdge e) {
-    Vec2 a = e.prev.curve.start();
-    Vec2 b = e.curve.start();
-    Vec2 c = e.curve.end();
+    Vec2 a = e.prev.origin;
+    Vec2 b = e.origin;
+    Vec2 c = e.twin.origin;
 
     if (above(a, b) && above(c, b)) {
       return e.interiorAngle() < Math.PI ? VertexType.END : VertexType.MERGE;
@@ -94,11 +82,12 @@ public class Monotonic {
   public static void monotonize(EdgeList edges) {
 
     // state
-    PriorityQueue<HalfEdge> heap = new PriorityQueue<>((a, b) -> COMPARATOR.compare(a.start(), b.start()));
+    PriorityQueue<HalfEdge> heap = new PriorityQueue<>((a, b) -> COMPARATOR.compare(a.origin, b. origin));
     IMap<Vec2, VertexType> type = new LinearMap<>();
     State state = new State();
 
     for (Vec2 v : edges.vertices()) {
+
       HalfEdge e = edges.edge(v, INSIDE);
       heap.add(e);
       type.put(e.start(), vertexType(e));
@@ -113,9 +102,9 @@ public class Monotonic {
     };
 
     Consumer<HalfEdge> connectLeftHelper = e -> {
-      HalfEdge left = state.search(e.start());
+      HalfEdge left = state.search(e.origin);
       connectMergeHelper.accept(e, left);
-      state.helper(left, e.start());
+      state.helper(left, e.origin);
     };
 
     // add diagonals
@@ -133,11 +122,11 @@ public class Monotonic {
           break;
 
         case SPLIT:
-          HalfEdge left = state.search(curr.start());
+          HalfEdge left = state.search(curr.origin);
           Vec2 v = state.helper(left);
-          edges.add(curr.start(), v, INSIDE, INSIDE);
+          edges.add(curr.origin, v);
 
-          state.helper(left, curr.start());
+          state.helper(left, curr.origin);
           state.add(curr);
           break;
 
@@ -160,4 +149,6 @@ public class Monotonic {
       }
     }
   }
+
+  */
 }

@@ -1,17 +1,5 @@
 package io.lacuna.artifex.utils.regions;
 
-import io.lacuna.artifex.Curve2;
-import io.lacuna.artifex.Curve2.Type;
-import io.lacuna.artifex.Line2;
-import io.lacuna.artifex.Vec2;
-import io.lacuna.artifex.utils.EdgeList;
-import io.lacuna.artifex.utils.EdgeList.HalfEdge;
-import io.lacuna.artifex.utils.SweepQueue;
-import io.lacuna.bifurcan.IMap;
-import io.lacuna.bifurcan.LinearMap;
-
-import static io.lacuna.artifex.Vec2.cross;
-
 /**
  * Wraps triangular hulls around all parametric curves, per https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch25.html
  * and the associated 2005 paper.
@@ -20,7 +8,7 @@ import static io.lacuna.artifex.Vec2.cross;
  */
 public class Hulls {
 
-  public static final int OUTSIDE = 0, INSIDE = 1, HULL = 2;
+  /*public static final int OUTSIDE = 0, INSIDE = 1, HULL = 2;
 
   public static Vec2 tangentIntersection(Curve2 c) {
     Vec2 pv = c.direction(0);
@@ -108,5 +96,5 @@ public class Hulls {
         edges.add(v, c.start(), HULL, INSIDE);
       }
     }
-  }
+  }*/
 }

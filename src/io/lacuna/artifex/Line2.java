@@ -36,8 +36,8 @@ public class Line2 implements Curve2 {
   }
 
   @Override
-  public Type type() {
-    return Type.FLAT;
+  public boolean isFlat(double epsilon) {
+    return true;
   }
 
   @Override
@@ -74,6 +74,11 @@ public class Line2 implements Curve2 {
   @Override
   public Vec2 direction(double t) {
     return new Vec2(bx - ax, by - ay);
+  }
+
+  @Override
+  public Curve2 range(double tMin, double tMax) {
+    return Line2.from(position(tMin), position(tMax));
   }
 
   @Override

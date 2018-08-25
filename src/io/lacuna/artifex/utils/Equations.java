@@ -26,16 +26,6 @@ public class Equations {
     }
   }
 
-  private static double normalizationFactor(double... ns) {
-    double max = Double.NEGATIVE_INFINITY;
-    for (double n : ns) {
-      max = max(max, abs(n));
-    }
-    double exponent = getExponent(max);
-
-    return (exponent < -8 || exponent > 8) ? Math.pow(2, -exponent) : 1;
-  }
-
   private static double[] split(double n) {
     double
       x = n * 134217729,
@@ -91,7 +81,7 @@ public class Equations {
 
     b *= -0.5;
 
-    double k = normalizationFactor(a, b, c);
+    double k = Scalars.normalizationFactor(a, b, c);
     a *= k;
     b *= k;
     c *= k;
@@ -134,7 +124,7 @@ public class Equations {
 
   public static int solveCubic(double a, double b, double c, double d, double[] acc) {
 
-    double k = normalizationFactor(a, b, c, d);
+    double k = Scalars.normalizationFactor(a, b, c, d);
     a *= k;
     b *= k;
     c *= k;

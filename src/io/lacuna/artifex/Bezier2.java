@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.ToDoubleFunction;
 
+import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.dot;
 import static io.lacuna.artifex.Vec.lerp;
 import static io.lacuna.artifex.Vec.vec;
@@ -59,8 +60,7 @@ public class Bezier2 {
 
     public final Vec2 p0, p1, p2;
 
-    private double[] inflections = null;
-    private int hash = -1;
+    private Box2 bounds = null;
 
     QuadraticBezier2(Vec2 p0, Vec2 p1, Vec2 p2) {
       this.p0 = p0;
@@ -79,15 +79,8 @@ public class Bezier2 {
     }
 
     @Override
-    public Type type() {
-      double d = signedDistance(p1, p0, p2);
-      if (d > EPSILON) {
-        return Type.CONVEX;
-      } else if (d < -EPSILON) {
-        return Type.CONCAVE;
-      } else {
-        return Type.FLAT;
-      }
+    public boolean isFlat(double epsilon) {
+      return abs(signedDistance(p1, p0, p2) / 2) < epsilon;
     }
 
     @Override
@@ -146,9 +139,10 @@ public class Bezier2 {
         throw new IllegalArgumentException("t must be within (0,1)");
       }
 
-      Vec2 e = lerp(p0, p1, t);
-      Vec2 f = lerp(p1, p2, t);
-      Vec2 g = position(t);
+      Vec2
+        e = lerp(p0, p1, t),
+        f = lerp(p1, p2, t),
+        g = position(t);
       return new Curve2[]{curve(p0, e, g), curve(g, f, p2)};
     }
 
@@ -211,29 +205,35 @@ public class Bezier2 {
     }
 
     @Override
-    public double[] inflections() {
-
-      final double epsilon = 1e-10;
-
-      if (inflections == null) {
-        Vec2 div = p0.sub(p1.mul(2)).add(p2);
-        if (div.equals(Vec2.ORIGIN)) {
-          inflections = new double[0];
-        } else {
-          Vec2 v = p0.sub(p1).div(div);
-          boolean x = inside(epsilon, v.x, 1 - epsilon);
-          boolean y = inside(epsilon, v.y, 1 - epsilon);
-          if (x && y) {
-            inflections = new double[]{v.x, v.y};
-          } else if (x ^ y) {
-            inflections = new double[]{x ? v.x : v.y};
-          } else {
-            inflections = new double[0];
-          }
+    public Box2 bounds() {
+      if (bounds == null) {
+        bounds = box(p0, p2);
+        for (double t : inflections()) {
+          bounds = bounds.union(position(t));
         }
       }
+      return bounds;
+    }
 
-      return inflections;
+    @Override
+    public double[] inflections() {
+      final double epsilon = 1e-10;
+
+      Vec2 div = p0.sub(p1.mul(2)).add(p2);
+      if (div.equals(Vec2.ORIGIN)) {
+        return new double[0];
+      } else {
+        Vec2 v = p0.sub(p1).div(div);
+        boolean x = inside(epsilon, v.x, 1 - epsilon);
+        boolean y = inside(epsilon, v.y, 1 - epsilon);
+        if (x && y) {
+          return new double[]{v.x, v.y};
+        } else if (x ^ y) {
+          return new double[]{x ? v.x : v.y};
+        } else {
+          return new double[0];
+        }
+      }
     }
 
     @Override
@@ -250,8 +250,7 @@ public class Bezier2 {
 
     public final Vec2 p0, p1, p2, p3;
 
-    private double[] inflections;
-    private int hash = -1;
+    private Box2 bounds;
 
     CubicBezier2(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
       this.p0 = p0;
@@ -303,17 +302,13 @@ public class Bezier2 {
     }
 
     @Override
-    public Type type() {
+    public boolean isFlat(double epsilon) {
       double d1 = signedDistance(p1, p0, p3);
       double d2 = signedDistance(p2, p0, p3);
 
-      if (d1 < -EPSILON || d2 < -EPSILON) {
-        return Type.CONCAVE;
-      } else if (abs(d1) < EPSILON && abs(d2) < EPSILON) {
-        return Type.FLAT;
-      } else {
-        return Type.CONVEX;
-      }
+      // from Sederberg 1990
+      double k = d1 * d2 < 0 ? 4 / 9.0 : 3 / 4.0;
+      return abs(d1 * k) < epsilon && abs(d2 * k) < epsilon;
     }
 
     @Override
@@ -337,12 +332,13 @@ public class Bezier2 {
         throw new IllegalArgumentException("t must be within (0,1)");
       }
 
-      Vec2 e = lerp(p0, p1, t);
-      Vec2 f = lerp(p1, p2, t);
-      Vec2 g = lerp(p2, p3, t);
-      Vec2 h = lerp(e, f, t);
-      Vec2 j = lerp(f, g, t);
-      Vec2 k = position(t);
+      Vec2
+        e = lerp(p0, p1, t),
+        f = lerp(p1, p2, t),
+        g = lerp(p2, p3, t),
+        h = lerp(e, f, t),
+        j = lerp(f, g, t),
+        k = position(t);
       return new Curve2[]{curve(p0, e, h, k), curve(k, j, g, p3)};
     }
 
@@ -424,27 +420,34 @@ public class Bezier2 {
     }
 
     @Override
+    public Box2 bounds() {
+      if (bounds == null) {
+        bounds = box(p0, p3);
+        for (double t : inflections()) {
+          bounds = bounds.union(position(t));
+        }
+      }
+      return bounds;
+    }
+
+    @Override
     public double[] inflections() {
 
       // there are pathological shapes that require less precision here
       final double epsilon = 1e-7;
 
-      if (inflections == null) {
-        Vec2 a0 = p1.sub(p0);
-        Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
-        Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
+      Vec2 a0 = p1.sub(p0);
+      Vec2 a1 = p2.sub(p1).sub(a0).mul(2);
+      Vec2 a2 = p3.sub(p2.mul(3)).add(p1.mul(3)).sub(p0);
 
-        double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
-        double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
+      double[] s1 = solveQuadratic(a2.x, a1.x, a0.x);
+      double[] s2 = solveQuadratic(a2.y, a1.y, a0.y);
 
-        DoubleAccumulator acc = new DoubleAccumulator();
-        for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
-        for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
+      DoubleAccumulator acc = new DoubleAccumulator();
+      for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
+      for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
 
-        inflections = acc.toArray();
-      }
-
-      return inflections;
+      return acc.toArray();
     }
 
     @Override
