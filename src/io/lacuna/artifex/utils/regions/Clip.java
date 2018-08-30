@@ -33,7 +33,7 @@ public class Clip {
   }
 
   /**
-   * an Arc a list of curves, which is either a loop or an edge connecting two points of intersection
+   * an Arc is a list of curves, either describing a loop or an edge between two points of intersection
    */
   private final static class Arc extends LinearList<Curve2> {
 
@@ -221,7 +221,7 @@ public class Clip {
 
     ISet<Vec2> remaining = LinearSet.from(in);
     for (Vec2 v : out) {
-      IList<Vec2> path = Graphs.shortestPath(graph, v, remaining::contains, Arc::length).orElse(null);
+      IList<Vec2> path = Graphs.shortestPath(graph, v, remaining::contains, e -> e.value().length()).orElse(null);
       if (path == null) {
         return null;
       }
@@ -261,7 +261,7 @@ public class Clip {
     // attempt to greedily pair our srcs and dsts
     IList<IList<Arc>> result = new LinearList<>();
     while (currIn.size() > 0 && currOut.size() > 0) {
-      IList<Vec2> path = Graphs.shortestPath(search, currOut, in::contains, Arc::length).orElse(null);
+      IList<Vec2> path = Graphs.shortestPath(search, currOut, in::contains, e -> e.value().length()).orElse(null);
 
       // if our search found a vertex that was previously claimed, we need something better than a greedy search
       if (path == null || !currIn.contains(path.last())) {
@@ -319,6 +319,8 @@ public class Clip {
     IList<Ring2> result = new LinearList<>();
     ISet<Arc> consumed = new LinearSet<>();
 
+    // First we're going to extract a cycle, and on the second go-around we'll try to "repair" the remaining edges, and
+    // extract any additional cycles we create in the process.
     for (int i = 0; i < 2; i++) {
 
       // Construct a graph where the edges are the set of all arcs connecting the vertices
@@ -330,10 +332,13 @@ public class Clip {
       if (i == 1) {
         for (IList<Arc> path : repairGraph(graph, LinearSet.from(pa.concat(pb)).difference(arcs).difference(consumed))) {
           for (Arc arc : path) {
+            // if the graph currently contains the arc, remove it
             if (arcs.contains(arc)) {
               //describe("remove", arc.vertices());
               graph.unlink(arc.head(), arc.tail());
               arcs.remove(arc);
+
+              // if the graph doesn't contain the arc, add it
             } else {
               //describe("add", arc.vertices());
               graph.link(arc.head(), arc.tail(), LinearSet.of(arc));
@@ -343,7 +348,7 @@ public class Clip {
         }
       }
 
-      // Find every cycle in the graph, and then expand those cycles into every possible arc combination, yielding a bunch
+      // find every cycle in the graph, and then expand those cycles into every possible arc combination, yielding a bunch
       // of rings ordered from largest to smallest
       IList<IList<Arc>> cycles = Graphs.cycles(graph)
         .stream()
@@ -353,9 +358,10 @@ public class Clip {
         .sorted(Comparator.comparingDouble(Clip::area).reversed())
         .collect(Lists.linearCollector());
 
+      // extract as many cycles as possible without using the same arc twice
       for (IList<Arc> cycle : cycles) {
         //describe("cycle", cycle.stream().map(Arc::vertices).toArray(IList[]::new));
-        if (!cycle.stream().allMatch(arcs::contains)) {
+        if (cycle.stream().anyMatch(consumed::contains)) {
           continue;
         }
 
