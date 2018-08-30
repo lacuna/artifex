@@ -1,10 +1,7 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.utils.Hashes;
-
 import static io.lacuna.artifex.Box.box;
 import static io.lacuna.artifex.Vec.vec;
-import static io.lacuna.artifex.utils.Scalars.EPSILON;
 
 /**
  * @author ztellman
@@ -20,19 +17,19 @@ public class Line2 implements Curve2 {
     this.by = by;
   }
 
-  public static Line2 from(Vec2 a, Vec2 b) {
+  public static Line2 line(Vec2 a, Vec2 b) {
     if (a.equals(b)) {
       throw new IllegalArgumentException("segments must have non-zero length " + a + " " + b);
     }
     return new Line2(a.x, a.y, b.x, b.y);
   }
 
-  public static Line2 from(Box2 b) {
+  public static Line2 line(Box2 b) {
     return new Line2(b.lx, b.ly, b.ux, b.uy);
   }
 
   public Line2 transform(Matrix3 m) {
-    return Line2.from(start().transform(m), end().transform(m));
+    return Line2.line(start().transform(m), end().transform(m));
   }
 
   @Override
@@ -78,7 +75,7 @@ public class Line2 implements Curve2 {
 
   @Override
   public Curve2 range(double tMin, double tMax) {
-    return Line2.from(position(tMin), position(tMax));
+    return Line2.line(position(tMin), position(tMax));
   }
 
   @Override
@@ -88,7 +85,7 @@ public class Line2 implements Curve2 {
     }
 
     Vec2 v = position(t);
-    return new Line2[]{from(start(), v), from(v, end())};
+    return new Line2[]{line(start(), v), line(v, end())};
   }
 
   @Override
@@ -100,7 +97,7 @@ public class Line2 implements Curve2 {
 
   @Override
   public Line2 endpoints(Vec2 start, Vec2 end) {
-    return from(start, end);
+    return line(start, end);
   }
 
   @Override

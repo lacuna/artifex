@@ -2,26 +2,27 @@ package io.lacuna.artifex.utils.regions;
 
 import io.lacuna.artifex.*;
 import io.lacuna.artifex.Ring2.Result;
+import io.lacuna.artifex.utils.Combinatorics;
 import io.lacuna.bifurcan.*;
-import io.lacuna.bifurcan.utils.Iterators;
 
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.function.BinaryOperator;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.abs;
-import static java.lang.Math.max;
-import static java.lang.Math.min;
 
 public class Clip {
+
+  public static final BinaryOperator<Arc> SHORTEST_ARC = (x, y) -> x.length() < y.length() ? x : y;
 
   // for debug purposes
 
   private static final ISet<Vec2> VERTICES = new LinearSet<>();
 
-  public static void describe(String prefix, IList<Vec2>... arcs) {
+  private static void describe(String prefix, IList<Vec2>... arcs) {
     for (IList<Vec2> arc : arcs) {
       arc.forEach(VERTICES::add);
       System.out.print(prefix + " ");
@@ -31,12 +32,20 @@ public class Clip {
     }
   }
 
-  ///
-
+  /**
+   * an Arc a list of curves, which is either a loop or an edge connecting two points of intersection
+   */
   private final static class Arc extends LinearList<Curve2> {
 
+    private double
+      length = Double.NaN,
+      area = Double.NaN;
+
     double length() {
-      return stream().mapToDouble(c -> c.end().sub(c.start()).length()).sum();
+      if (Double.isNaN(length)) {
+        length = stream().mapToDouble(c -> c.end().sub(c.start()).length()).sum();
+      }
+      return length;
     }
 
     Vec2 head() {
@@ -77,7 +86,10 @@ public class Clip {
     }
 
     double signedArea() {
-      return stream().mapToDouble(Curve2::signedArea).sum();
+      if (Double.isNaN(area)) {
+        area = stream().mapToDouble(Curve2::signedArea).sum();
+      }
+      return area;
     }
 
     @Override
@@ -91,8 +103,12 @@ public class Clip {
     }
   }
 
+  private static double area(IList<Arc> arcs) {
+    return abs(arcs.stream().mapToDouble(Arc::signedArea).sum());
+  }
+
   private static double length(IList<Arc> arcs) {
-    return arcs.stream().mapToDouble(Arc::length).sum();
+    return abs(arcs.stream().mapToDouble(Arc::length).sum());
   }
 
   private static Ring2 ring(IList<Arc> arcs) {
@@ -155,15 +171,6 @@ public class Clip {
     }
   }
 
-  private static IMap<Vec2, Integer> edgeCounts(Iterable<Arc> arcs) {
-    IMap<Vec2, Integer> result = new LinearMap<>();
-    for (Arc arc : arcs) {
-      result.update(arc.head(), n -> (n == null ? 0 : n) + 1);
-      result.update(arc.tail(), n -> (n == null ? 0 : n) + 1);
-    }
-    return result;
-  }
-
   /**
    * Cuts the rings of a region at the specified vertices, yielding a list of arcs that will serve as the edges of our
    * graph.
@@ -209,45 +216,76 @@ public class Clip {
     return result;
   }
 
-  /**
-   * Given a list of potential values at each index in a list, returns all possible permutations of those values.
-   */
-  public static <V> IList<IList<V>> permutations(IList<IList<V>> paths) {
-    long maxSize = Long.MIN_VALUE, minSize = Long.MAX_VALUE;
-    for (IList<V> l : paths) {
-      maxSize = max(maxSize, l.size());
-      minSize = min(minSize, l.size());
-    }
+  public static IList<IList<Arc>> greedyPairing(IGraph<Vec2, Arc> graph, IList<Vec2> out, ISet<Vec2> in) {
+    IList<IList<Arc>> result = new LinearList<>();
 
-    if (minSize == 0) {
-      return Lists.EMPTY;
-    } else if (maxSize == 1) {
-      return LinearList.of(
-        paths.stream()
-          .map(IList::first)
-          .collect(Lists.linearCollector()));
-    }
-
-    int[] indices = new int[(int) paths.size()];
-    IList<IList<V>> result = new LinearList<>();
-
-    while (indices[0] < paths.first().size()) {
-      IList<V> path = new LinearList<>(indices.length);
-      for (int i = 0; i < indices.length; i++) {
-        path.addLast(paths.nth(i).nth(indices[i]));
+    ISet<Vec2> remaining = LinearSet.from(in);
+    for (Vec2 v : out) {
+      IList<Vec2> path = Graphs.shortestPath(graph, v, remaining::contains, Arc::length).orElse(null);
+      if (path == null) {
+        return null;
       }
-      result.addLast(path);
 
-      for (int i = indices.length - 1; i >= 0; i--) {
-        if (++indices[i] < paths.nth(i).size()) {
-          break;
-        } else if (i > 0) {
-          indices[i] = 0;
-        }
-      }
+      remaining.remove(path.last());
+      result.addLast(edges(path, graph::edge));
     }
 
     return result;
+  }
+
+  public static IList<IList<Arc>> repairGraph(IGraph<Vec2, ISet<Arc>> graph, Iterable<Arc> unused) {
+
+    // create a graph of all the unused arcs
+    IGraph<Vec2, Arc> search = new DirectedGraph<Vec2, Arc>().linear();
+    for (Arc arc : unused) {
+      search.link(arc.head(), arc.tail(), arc, SHORTEST_ARC);
+    }
+
+    // add in the existing arcs as reversed edges, so we can potentially retract them
+    for (IEdge<Vec2, ISet<Arc>> e : graph.edges()) {
+      Arc arc = e.value().stream().min(Comparator.comparingDouble(Arc::length)).get();
+      search.link(arc.tail(), arc.head(), arc, SHORTEST_ARC);
+    }
+
+    //search.vertices().forEach(v -> System.out.println(VERTICES.indexOf(v) + " " + search.out(v).stream().map(VERTICES::indexOf).collect(Lists.linearCollector())));
+
+    ISet<Vec2>
+      out = graph.vertices().stream().filter(v -> graph.out(v).size() == 0).collect(Sets.linearCollector()),
+      in = graph.vertices().stream().filter(v -> graph.in(v).size() == 0).collect(Sets.linearCollector()),
+      currOut = out.clone(),
+      currIn = in.clone();
+
+    //describe("out", out.elements());
+    //describe("in", in.elements());
+
+    // attempt to greedily pair our srcs and dsts
+    IList<IList<Arc>> result = new LinearList<>();
+    while (currIn.size() > 0 && currOut.size() > 0) {
+      IList<Vec2> path = Graphs.shortestPath(search, currOut, in::contains, Arc::length).orElse(null);
+
+      // if our search found a vertex that was previously claimed, we need something better than a greedy search
+      if (path == null || !currIn.contains(path.last())) {
+        break;
+
+      } else {
+        currOut.remove(path.first());
+        currIn.remove(path.last());
+        result.addLast(edges(path, search::edge));
+      }
+    }
+
+    if (currIn.size() == 0 || currOut.size() == 0) {
+      return result;
+    }
+
+    // do greedy pairings with every possible vertex ordering, and choose the one that results in the shortest aggregate
+    // paths
+    return Combinatorics.permutations(out.elements())
+      .stream()
+      .map(vs -> greedyPairing(search, vs, in))
+      .filter(Objects::nonNull)
+      .min(Comparator.comparingDouble(paths -> paths.stream().mapToDouble(Clip::length).sum()))
+      .get();
   }
 
   public static Region2 operation(Region2 ra, Region2 rb, Operation operation, Predicate<Type> aPredicate, Predicate<Type> bPredicate) {
@@ -274,64 +312,62 @@ public class Clip {
       .filter(arc -> bPredicate.test(classify(a, arc)))
       .forEach(arcs::add);
 
-    // For each ring, a vertex needs two edges, so every vertex should have an even number of edges.  If it doesn't, we
-    // either added a duplicate edge (missed intersections or floating point imprecision might cause us to think two
-    // curves are inside each other), or missed an edge (due to the same problem in reverse).
-    ISet<Vec2> oddVertices = edgeCounts(arcs).stream()
-      .filter(e -> e.value() % 2 == 1)
-      .map(IEntry::key)
-      .collect(Sets.linearCollector());
+    //describe("split", split.splits.elements());
+    //describe("arcs", arcs.elements().stream().map(Arc::vertices).toArray(IList[]::new));
+    //VERTICES.forEach(v -> System.out.println(VERTICES.indexOf(v) + " " + v));
 
-    // To fix the odd vertices, we need to either add or remove an edge.  To do this, we find the shortest path between
-    // any two vertices using both included and omitted edges, and invert the inclusion of every edge on that path.
-    //
-    // This is not a provably correct solution, but making the smallest possible change dovetails nicely with the fact
-    // that most errors arise from a pair of infinitesimal curve segments.  In the parlance of numerical computing, this
-    // solution is both robust (able to cope with pathological inputs) and stable (introduces minimal error).
-    if (oddVertices.size() > 0) {
-      IGraph<Vec2, Arc> allArcs = new DirectedGraph<Vec2, Arc>().linear();
-      pa.concat(pb).forEach(arc -> allArcs.link(arc.head(), arc.tail(), arc, (x, y) -> x.length() < y.length() ? x : y));
+    IList<Ring2> result = new LinearList<>();
+    ISet<Arc> consumed = new LinearSet<>();
 
-      while (oddVertices.size() > 0) {
-        IList<Vec2> path = Graphs.shortestPath(allArcs, oddVertices, oddVertices::contains, Arc::length).get();
-        oddVertices.remove(path.first()).remove(path.last());
+    for (int i = 0; i < 2; i++) {
 
-        for (Arc arc : edges(path, allArcs::edge)) {
-          if (arcs.contains(arc)) {
-            arcs.remove(arc);
-          } else {
-            arcs.add(arc);
+      // Construct a graph where the edges are the set of all arcs connecting the vertices
+      IGraph<Vec2, ISet<Arc>> graph = new DirectedGraph<Vec2, ISet<Arc>>().linear();
+      arcs.forEach(arc -> graph.link(arc.head(), arc.tail(), LinearSet.of(arc), ISet::union));
+
+      //graph.vertices().forEach(v -> System.out.println(VERTICES.indexOf(v) + " " + graph.out(v).stream().map(VERTICES::indexOf).collect(Lists.linearCollector())));
+
+      if (i == 1) {
+        for (IList<Arc> path : repairGraph(graph, LinearSet.from(pa.concat(pb)).difference(arcs).difference(consumed))) {
+          for (Arc arc : path) {
+            if (arcs.contains(arc)) {
+              //describe("remove", arc.vertices());
+              graph.unlink(arc.head(), arc.tail());
+              arcs.remove(arc);
+            } else {
+              //describe("add", arc.vertices());
+              graph.link(arc.head(), arc.tail(), LinearSet.of(arc));
+              arcs.add(arc);
+            }
           }
         }
       }
-    }
 
-    // Construct a graph where the edge is a set of all arcs between those two vertices
-    IGraph<Vec2, ISet<Arc>> graph = new DirectedGraph<Vec2, ISet<Arc>>().linear();
-    arcs.forEach(arc -> graph.link(arc.head(), arc.tail(), LinearSet.of(arc), ISet::union));
+      // Find every cycle in the graph, and then expand those cycles into every possible arc combination, yielding a bunch
+      // of rings ordered from largest to smallest
+      IList<IList<Arc>> cycles = Graphs.cycles(graph)
+        .stream()
+        .map(cycle -> edges(cycle, (x, y) -> graph.edge(x, y).elements()))
+        .map(Combinatorics::combinations)
+        .flatMap(IList::stream)
+        .sorted(Comparator.comparingDouble(Clip::area).reversed())
+        .collect(Lists.linearCollector());
 
-    // Find every cycle in the graph, and then expand those cycles into every possible arc permutation, yielding a bunch
-    // of rings ordered from largest to smallest
-    IList<IList<Arc>> cycles = Graphs.cycles(graph)
-      .stream()
-      .map(cycle -> edges(cycle, (x, y) -> graph.edge(x, y).elements()))
-      .map(Clip::permutations)
-      .flatMap(IList::stream)
-      .sorted(Comparator.comparingDouble(Clip::length).reversed())
-      .collect(Lists.linearCollector());
+      for (IList<Arc> cycle : cycles) {
+        //describe("cycle", cycle.stream().map(Arc::vertices).toArray(IList[]::new));
+        if (!cycle.stream().allMatch(arcs::contains)) {
+          continue;
+        }
 
-    // Construct the rings, unless a larger ring has already used one of the arcs.  This will happen whenever we have
-    // a redundant arc (likely because we added an edge above where we should have removed one), but in most cases
-    // this is harmless.
-    IList<Ring2> result = new LinearList<>();
-    ISet<Arc> consumed = new LinearSet<>();
-    for (IList<Arc> path : cycles) {
-      if (path.stream().anyMatch(consumed::contains)) {
-        continue;
+        cycle.forEach(consumed::add);
+        result.addLast(ring(cycle));
       }
 
-      path.forEach(consumed::add);
-      result.addLast(ring(path));
+      arcs = arcs.difference(consumed);
+
+      if (arcs.size() == 0) {
+        break;
+      }
     }
 
     return new Region2(result);

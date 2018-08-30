@@ -116,7 +116,7 @@ public class Vec3 implements Vec<Vec3> {
 
   @Override
   public String toString() {
-    return String.format("[x=%f, y=%f, z=%f]", x, y, z);
+    return "[x=" + x + ", y=" + y + ", z=" + z + "]";
   }
 
   @Override

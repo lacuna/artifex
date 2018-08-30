@@ -114,8 +114,9 @@ public class Vec4 implements Vec<Vec4> {
 
   @Override
   public String toString() {
-    return String.format("[x=%f, y=%f, z=%f, w=%f]", x, y, z, w);
+    return "[x=" + x + ", y=" + y + ", z=" + z + ", w=" + w + "]";
   }
+
 
   @Override
   public int compareTo(Vec4 o) {

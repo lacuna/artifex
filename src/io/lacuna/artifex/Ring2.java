@@ -1,9 +1,7 @@
 package io.lacuna.artifex;
 
 import io.lacuna.artifex.utils.Intersections;
-import io.lacuna.artifex.utils.Scalars;
 import io.lacuna.bifurcan.LinearList;
-import io.lacuna.bifurcan.List;
 import io.lacuna.bifurcan.Lists;
 
 import java.util.Arrays;
@@ -122,18 +120,13 @@ public class Ring2 {
       area);
   }
 
-  private int verticalOrientation(Curve2 c) {
-    double delta = c.end().y - c.start().y;
-    return abs(delta) < EPSILON ? 0 : (int) signum(delta);
-  }
-
   public Result test(Vec2 p) {
 
     if (!bounds.expand(SPATIAL_EPSILON).contains(p)) {
       return Result.OUTSIDE;
     }
 
-    Line2 ray = Line2.from(p, vec(bounds.ux + 1, p.y));
+    Line2 ray = Line2.line(p, vec(bounds.ux + 1, p.y));
     int count = 0;
 
     // since our curves have been split at inflection points, there can only

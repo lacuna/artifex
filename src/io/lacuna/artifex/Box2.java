@@ -1,6 +1,5 @@
 package io.lacuna.artifex;
 
-import javax.naming.NameNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,9 +69,21 @@ public class Box2 extends Box<Vec2, Box2> {
     List<Curve2> cs = new ArrayList<>();
     Vec2[] vs = vertices();
     for (int i = 0; i < vs.length; i++) {
-      cs.add(Line2.from(vs[i], vs[(i + 1) % 4]));
+      cs.add(Line2.line(vs[i], vs[(i + 1) % 4]));
     }
     return new Ring2(cs);
+  }
+
+  @Override
+  public boolean intersects(Box2 b) {
+    if (isEmpty() || b.isEmpty()) {
+      return false;
+    }
+
+    return b.ux >= lx
+      & ux >= b.lx
+      & b.uy >= ly
+      & uy >= b.ly;
   }
 
   @Override

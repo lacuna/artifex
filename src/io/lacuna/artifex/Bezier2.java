@@ -5,7 +5,6 @@ import io.lacuna.bifurcan.LinearList;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.ToDoubleFunction;
 
 import static io.lacuna.artifex.Box.box;
@@ -25,7 +24,7 @@ import static java.lang.Math.*;
 public class Bezier2 {
 
   public static Curve2 curve(Vec2 p0, Vec2 p1) {
-    return Line2.from(p0, p1);
+    return Line2.line(p0, p1);
   }
 
   public static Curve2 curve(Vec2 p0, Vec2 p1, Vec2 p2) {
@@ -60,7 +59,12 @@ public class Bezier2 {
 
     public final Vec2 p0, p1, p2;
 
-    private Box2 bounds = null;
+    private boolean noInflections = false;
+
+    private QuadraticBezier2(Vec2 p0, Vec2 p1, Vec2 p2, boolean noInflections) {
+      this(p0, p1, p2);
+      this.noInflections = noInflections;
+    }
 
     QuadraticBezier2(Vec2 p0, Vec2 p1, Vec2 p2) {
       this.p0 = p0;
@@ -130,7 +134,7 @@ public class Bezier2 {
       double det = bd.x * ad.y - bd.y * ad.x;
       double u = (dy * bd.x - dx * bd.y) / det;
 
-      return new QuadraticBezier2(start, start.add(ad.mul(u)), end);
+      return new QuadraticBezier2(start, start.add(ad.mul(u)), end, noInflections);
     }
 
     @Override
@@ -143,7 +147,10 @@ public class Bezier2 {
         e = lerp(p0, p1, t),
         f = lerp(p1, p2, t),
         g = position(t);
-      return new Curve2[]{curve(p0, e, g), curve(g, f, p2)};
+
+      return new Curve2[]{
+        new QuadraticBezier2(p0, e, g, noInflections),
+        new QuadraticBezier2(g, f, p2, noInflections)};
     }
 
     @Override
@@ -201,26 +208,29 @@ public class Bezier2 {
 
     @Override
     public QuadraticBezier2 reverse() {
-      return new QuadraticBezier2(p2, p1, p0);
+      return new QuadraticBezier2(p2, p1, p0, noInflections);
     }
 
     @Override
     public Box2 bounds() {
-      if (bounds == null) {
-        bounds = box(p0, p2);
-        for (double t : inflections()) {
-          bounds = bounds.union(position(t));
-        }
+      if (noInflections) {
+        return box(p0, p2);
+      } else {
+        return Curve2.super.bounds();
       }
-      return bounds;
     }
 
     @Override
     public double[] inflections() {
+      if (noInflections) {
+        return new double[0];
+      }
+
       final double epsilon = 1e-10;
 
       Vec2 div = p0.sub(p1.mul(2)).add(p2);
       if (div.equals(Vec2.ORIGIN)) {
+        noInflections = true;
         return new double[0];
       } else {
         Vec2 v = p0.sub(p1).div(div);
@@ -231,6 +241,7 @@ public class Bezier2 {
         } else if (x ^ y) {
           return new double[]{x ? v.x : v.y};
         } else {
+          noInflections = true;
           return new double[0];
         }
       }
@@ -250,7 +261,13 @@ public class Bezier2 {
 
     public final Vec2 p0, p1, p2, p3;
 
+    private boolean noInflections = false;
     private Box2 bounds;
+
+    private CubicBezier2(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3, boolean noInflections) {
+      this(p0, p1, p2, p3);
+      this.noInflections = noInflections;
+    }
 
     CubicBezier2(Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3) {
       this.p0 = p0;
@@ -313,7 +330,7 @@ public class Bezier2 {
 
     @Override
     public CubicBezier2 endpoints(Vec2 start, Vec2 end) {
-      return new CubicBezier2(start, p1.add(start.sub(p0)), p2.add(end.sub(p3)), end);
+      return new CubicBezier2(start, p1.add(start.sub(p0)), p2.add(end.sub(p3)), end, noInflections);
     }
 
     @Override
@@ -339,7 +356,10 @@ public class Bezier2 {
         h = lerp(e, f, t),
         j = lerp(f, g, t),
         k = position(t);
-      return new Curve2[]{curve(p0, e, h, k), curve(k, j, g, p3)};
+
+      return new Curve2[]{
+        new CubicBezier2(p0, e, h, k, noInflections),
+        new CubicBezier2(k, j, g, p3, noInflections)};
     }
 
     @Override
@@ -416,22 +436,24 @@ public class Bezier2 {
 
     @Override
     public CubicBezier2 reverse() {
-      return new CubicBezier2(p3, p2, p1, p0);
+      return new CubicBezier2(p3, p2, p1, p0, noInflections);
     }
 
     @Override
     public Box2 bounds() {
-      if (bounds == null) {
-        bounds = box(p0, p3);
-        for (double t : inflections()) {
-          bounds = bounds.union(position(t));
-        }
+      if (noInflections) {
+        return box(p0, p3);
+      } else {
+        return Curve2.super.bounds();
       }
-      return bounds;
     }
 
     @Override
     public double[] inflections() {
+
+      if (noInflections) {
+        return new double[0];
+      }
 
       // there are pathological shapes that require less precision here
       final double epsilon = 1e-7;
@@ -446,6 +468,8 @@ public class Bezier2 {
       DoubleAccumulator acc = new DoubleAccumulator();
       for (double n : s1) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
       for (double n : s2) if (inside(epsilon, n, 1 - epsilon)) acc.add(n);
+
+      noInflections = acc.size() == 0;
 
       return acc.toArray();
     }

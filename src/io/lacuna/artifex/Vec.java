@@ -68,7 +68,7 @@ public interface Vec<T extends Vec<T>> extends Comparable<T> {
   }
 
   static Vec2 lerp(Vec2 a, Vec2 b, double t) {
-    return new Vec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+    return new Vec2(a.x + ((b.x - a.x) * t), a.y + ((b.y - a.y) * t));
   }
 
   static <T extends Vec<T>> T lerp(T a, T b, T t) {
@@ -76,7 +76,7 @@ public interface Vec<T extends Vec<T>> extends Comparable<T> {
   }
 
   static Vec2 lerp(Vec2 a, Vec2 b, Vec2 t) {
-    return new Vec2(a.x + (b.x - a.x) * t.x, a.y + (b.y - a.y) * t.y);
+    return new Vec2(a.x + ((b.x - a.x) * t.x), a.y + ((b.y - a.y) * t.y));
   }
 
   static <T extends Vec<T>> boolean equals(T a, T b, double tolerance) {
@@ -156,6 +156,13 @@ public interface Vec<T extends Vec<T>> extends Comparable<T> {
     } else {
       return div(Math.sqrt(l));
     }
+  }
+
+  default T pseudoNorm() {
+    int exponent = Math.getExponent(reduce(Math::max));
+    return (exponent < -8 | exponent > 8)
+      ? mul(Math.pow(2, -exponent))
+      : (T) this;
   }
 
   default PrimitiveIterator.OfDouble iterator() {

@@ -31,6 +31,10 @@ public class Scalars {
     return result;
   }
 
+  public static double normalize(double a, double b, double n) {
+    return (n - a) / (b - a);
+  }
+
   public static double lerp(double a, double b, double t) {
     return a + ((b - a) * t);
   }
@@ -55,11 +59,13 @@ public class Scalars {
   }
 
   public static double normalizationFactor(double a, double b, double c) {
-    return normalizationFactor(a, b, c, Double.NEGATIVE_INFINITY);
+    double exponent = getExponent(max(max(a, b), c));
+    return (exponent < -8 || exponent > 8) ? Math.pow(2, -exponent) : 1;
   }
 
   public static double normalizationFactor(double a, double b) {
-    return normalizationFactor(a, b, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY);
+    double exponent = getExponent(max(a, b));
+    return (exponent < -8 || exponent > 8) ? Math.pow(2, -exponent) : 1;
   }
 
   public static double max(double a, double b) {

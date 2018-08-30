@@ -36,7 +36,7 @@ public class Path2 {
       Vec2 a = vertices[i];
       Vec2 b = vertices[i + 1];
       if (!Vec.equals(a, b, EPSILON)) {
-        segments.add(Line2.from(vertices[i], vertices[i + 1]));
+        segments.add(Line2.line(vertices[i], vertices[i + 1]));
       }
     }
     return new Path2(segments);

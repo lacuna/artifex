@@ -56,8 +56,6 @@
 (defn quantile [ary q]
   (aget ary (int (* (dec (alength ary)) q))))
 
-(def n 1e5)
-
 (deftest test-random-collinear-curves
   (doseq [degree [2 3 4]]
     (let [c (random-curve degree 0 1)
@@ -81,7 +79,7 @@
   (->> (range (inc n))
     (map #(.position c (/ % n)))
     (partition 2 1)
-    (map #(Line2/from (first %) (second %)))
+    (map #(Line2/line (first %) (second %)))
     (map vector (range))
     vec))
 
@@ -99,30 +97,39 @@
       (apply concat)
       distinct)))
 
+(def n 1e6)
+
 (deftest test-random-intersections
   (doall
     (for [a-degree [2 3 4]
           b-degree [2 3 4]
           :when    (<= a-degree b-degree)]
-      (let [l (java.util.ArrayList.)]
-        (time
-          (dotimes [_ n]
-            (let [^Curve2 a     (random-curve a-degree 0 1)
-                  ^Curve2 b     (random-curve b-degree 0 1)
-                  intersections (.intersections a b)]
-              (doseq [^Vec2 i intersections]
-                (let [u (.position a (.x i))
-                      v (.position b (.y i))
-                      dist (.length (.sub u v))]
-                  (.add l [dist (when (< 1e-5 dist)
-                                  [a b])]))))))
+      (do
+        (prn a-degree b-degree)
+        (let [l (java.util.ArrayList.)]
+          (time
+            (dotimes [_ n]
+              (let [^Curve2 a     (random-curve a-degree 0 1)
+                    ^Curve2 b     (random-curve b-degree 0 1)
+                    intersections (.intersections a b)]
+                (doseq [^Vec2 i intersections]
+                  (let [u (.position a (.x i))
+                        v (.position b (.y i))
+                        dist (.length (.sub u v))]
+                    (.add l [dist (when (< 1e-5 dist)
+                                    [a b])]))))))
 
-        (let [ary (.toArray l)]
-          (Arrays/sort ary (comparator #(< (first %1) (first %2))))
-          (when-not (empty? ary)
-            (prn a-degree b-degree)
-            (prn (count ary) (first (quantile ary 0.99999)) (first (quantile ary 0.999)))
-            (prn (last ary))
-            (prn)
-            (is (< (first (quantile ary 0.99999)) 1e-6) (pr-str (last ary)))
-            (is (< (first (quantile ary 0.999)) 1e-10) (pr-str (last ary)))))))))
+          (let [ary (.toArray l)]
+            (Arrays/sort ary (comparator #(< (first %1) (first %2))))
+            (when-not (empty? ary)
+              (prn (count ary)
+                (mapv
+                  #(first (quantile ary %))
+                  [0.99999
+                   0.999
+                   0.9
+                   0.5]))
+              (prn (last ary))
+              (prn)
+              (is (< (first (quantile ary 0.99999)) 1e-6) (pr-str (last ary)))
+              (is (< (first (quantile ary 0.999)) 1e-8) (pr-str (last ary))))))))))

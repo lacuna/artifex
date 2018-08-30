@@ -17,7 +17,7 @@ import static java.lang.Math.min;
  */
 public class Interval {
 
-  private static final Interval EMPTY = new Interval(Double.NaN, Double.NaN);
+  public static final Interval EMPTY = new Interval(Double.NaN, Double.NaN);
 
   public final double lo, hi;
 
@@ -31,8 +31,8 @@ public class Interval {
     }
   }
 
-  public static Interval empty() {
-    return EMPTY;
+  public static Interval interval(double a, double b) {
+    return new Interval(a, b);
   }
 
   /// predicates
@@ -55,21 +55,27 @@ public class Interval {
 
   ///
 
+  public Interval expand(double n) {
+    return size() + (n * 2) < 0
+      ? EMPTY
+      : new Interval(lo - n, hi + n);
+  }
+
   public Interval map(DoubleUnaryOperator f) {
     return new Interval(f.applyAsDouble(lo), f.applyAsDouble(hi));
   }
 
   public Interval add(Interval i) {
-    return isEmpty() || i.isEmpty() ? empty() : new Interval(lo + i.lo, hi + i.hi);
+    return isEmpty() || i.isEmpty() ? EMPTY : new Interval(lo + i.lo, hi + i.hi);
   }
 
   public Interval sub(Interval i) {
-    return isEmpty() || i.isEmpty() ? empty() : new Interval(lo - i.lo, hi - i.hi);
+    return isEmpty() || i.isEmpty() ? EMPTY : new Interval(lo - i.lo, hi - i.hi);
   }
 
   public Interval mul(Interval i) {
     return isEmpty() || i.isEmpty()
-      ? empty()
+      ? EMPTY
       : new Interval(lo * hi, i.lo * i.hi).union(new Interval(lo * i.hi, i.lo * hi));
   }
 
@@ -88,19 +94,23 @@ public class Interval {
   ///
 
   public Interval union(Interval i) {
-    return new Interval(min(lo, i.lo), max(hi, i.hi));
+    return isEmpty() ? i : new Interval(min(lo, i.lo), max(hi, i.hi));
+  }
+
+  public Interval union(double n) {
+    return isEmpty() ? new Interval(n, n) : new Interval(min(lo, n), max(hi, n));
   }
 
   public Interval intersection(Interval i) {
     if (isEmpty() || i.isEmpty() || !intersects(i)) {
-      return empty();
+      return EMPTY;
     }
 
     return new Interval(max(lo, i.lo), min(hi, i.hi));
   }
 
   public double normalize(double n) {
-    return (n - lo) / size();
+    return n == hi ? 1 : (n - lo) / size();
   }
 
   public Interval normalize(Interval i) {
@@ -108,7 +118,7 @@ public class Interval {
   }
 
   public double lerp(double t) {
-    return Scalars.lerp(lo, hi, t);
+    return t == 1 ? hi : Scalars.lerp(lo, hi, t);
   }
 
   public Interval lerp(Interval i) {

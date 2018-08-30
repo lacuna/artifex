@@ -1,11 +1,10 @@
 package io.lacuna.artifex;
 
-import io.lacuna.artifex.utils.Scalars;
-
 import java.awt.geom.Rectangle2D;
 import java.util.function.DoublePredicate;
 
-import static io.lacuna.artifex.utils.Scalars.EPSILON;
+import static io.lacuna.artifex.Interval.interval;
+import static io.lacuna.artifex.Vec.vec;
 import static io.lacuna.artifex.utils.Scalars.max;
 
 /**
@@ -20,6 +19,10 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
 
   public static Box2 box(Vec2 a, Vec2 b) {
     return new Box2(a, b);
+  }
+
+  public static Box2 box(Interval a, Interval b) {
+    return new Box2(vec(a.lo, b.lo), vec(a.hi, b.hi));
   }
 
   public static Box3 box(Vec3 a, Vec3 b) {
@@ -88,6 +91,10 @@ public abstract class Box<T extends Vec<T>, U extends Box<T, U>> {
   public boolean contains(T v) {
     return v.sub(lower()).every(NOT_NEGATIVE)
       && upper().sub(v).every(NOT_NEGATIVE);
+  }
+
+  public Interval nth(int idx) {
+    return interval(lower().nth(idx), upper().nth(idx));
   }
 
   public T clamp(T v) {

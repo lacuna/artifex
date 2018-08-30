@@ -58,6 +58,14 @@ public interface Curve2 {
   boolean isFlat(double epsilon);
 
   /**
+   * @param interval the parametric range
+   * @return the curve within [interval.lo, interval.hi]
+   */
+  default Curve2 range(Interval interval) {
+    return range(interval.lo, interval.hi);
+  }
+
+  /**
    * @param tMin the lower parametric bound
    * @param tMax the upper parametric bound
    * @return the curve within [tMin, tMax]
