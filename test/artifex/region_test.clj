@@ -133,48 +133,31 @@
 
 ;;;
 
-(defspec test-region-ops 1e4
+#_[[:union [:intersection [:square 0.0 0.2 1.0 0.1] [:circle 0.0 0.0 0.7 1.0]] [:square 0.1 0.0 0.3 0.3]] ([0.5 0.3] [0.6 0.3])]
+
+#_[[:union [:circle 0.8 0.3 0.5 0.2] [:intersection [:circle 0.7 0.3 0.6 0.1] [:circle 0.3 0.3 1.0 0.1]]] ([0.4 0.2] [0.5 0.2])]
+
+(defspec test-region-ops 1e9
   (let [n (atom 0)]
     (prop/for-all [descriptor (->> (gen-compound-shape 4)
                                 (gen/fmap simplify)
-                                          (gen/such-that #(not= % [:none])))
-                   points (gen/vector (gen/tuple (gen-float 0 1) (gen-float 0 1)) 2 100)
-                   ]
-      (when (zero? (rem (swap! n inc) 1e5))
-        (prn @n))
+                                (gen/such-that #(not= % [:none])))
+                   points (gen/fmap
+                            distinct
+                            (gen/vector
+                             (gen/tuple (gen-float 0 1) (gen-float 0 1))
+                             2 100))]
+      (when (zero? (rem (swap! n inc) 1e6))
+        (println (str (/ @n 1e6) "M")))
       #_(prn descriptor)
-      (let [^Region2 r (parse descriptor)]
-        (if
-            (> 2
-              (count
-                (remove
-                  (fn [[x y]]
-                    (let [v (Vec2. x y)]
-                      (if-let [expected (test-point descriptor v)]
-                        (->> (spread v 1e-2)
-                          (some #(= expected (.contains r %)))
-                          boolean)
-                        true)))
-                  (distinct points))))
-          #_(every?
-              (fn [[x y]]
-                (let [v (Vec2. x y)]
-                  (if-let [expected (test-point descriptor v)]
-                    (->> (spread v 1e-2)
-                      (some #(= expected (.contains r %)))
-                      boolean)
-                    true)))
-              points)
-          #_(every?
-              (fn [[x y]]
-                (let [v (Vec2. x y)]
-                  (if-let [expected (test-point descriptor v)]
-                    (= expected (.contains r v))
-                    true)))
-              points)
-          (do
-            #_(prn '.)
-            true)
-          (do
-            #_(prn 'fail)
-            false))))))
+      (let [^Region2 r     (parse descriptor)
+            invalid-points (->> points
+                             (remove
+                               (fn [[x y]]
+                                 (let [v (Vec2. x y)]
+                                   (if-let [expected (test-point descriptor v)]
+                                     (->> (spread v (/ 0.1 resolution))
+                                       (some #(= expected (.contains r %)))
+                                       boolean)
+                                     true)))))]
+        (< (count invalid-points) 2)))))
