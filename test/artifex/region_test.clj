@@ -4,8 +4,12 @@
    [clojure.test :refer :all]
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
-   [clojure.test.check.clojure-test :as ct :refer (defspec)])
+   [clojure.test.check :as tc])
   (:import
+   [java.util.concurrent
+    Executors
+    ThreadFactory
+    TimeUnit]
    [io.lacuna.bifurcan
     LinearList
     List]
@@ -133,31 +137,54 @@
 
 ;;;
 
-#_[[:union [:intersection [:square 0.0 0.2 1.0 0.1] [:circle 0.0 0.0 0.7 1.0]] [:square 0.1 0.0 0.3 0.3]] ([0.5 0.3] [0.6 0.3])]
+(defn valid-set-operation [depth]
+  (prop/for-all [descriptor (->> (gen-compound-shape depth)
+                              (gen/fmap simplify)
+                              (gen/such-that #(not= % [:none])))
+                 points (gen/fmap
+                          distinct
+                          (gen/vector
+                            (gen/tuple (gen-float 0 1) (gen-float 0 1))
+                            2 100))]
+    #_(prn descriptor)
+    (let [^Region2 r     (parse descriptor)
+          invalid-points (->> points
+                           (remove
+                             (fn [[x y]]
+                               (let [v (Vec2. x y)]
+                                 (if-let [expected (test-point descriptor v)]
+                                   (->> (spread v (/ 0.1 resolution))
+                                     (some #(= expected (.contains r %)))
+                                     boolean)
+                                   true)))))]
+      (< (count invalid-points) 2))))
 
-#_[[:union [:circle 0.8 0.3 0.5 0.2] [:intersection [:circle 0.7 0.3 0.6 0.1] [:circle 0.3 0.3 1.0 0.1]]] ([0.4 0.2] [0.5 0.2])]
+(deftest ^:stress test-region-ops
+  (let [n          1e6
+        chunk-size 1e3
+        threads    6
+        depth      4]
 
-(defspec test-region-ops 1e9
-  (let [n (atom 0)]
-    (prop/for-all [descriptor (->> (gen-compound-shape 4)
-                                (gen/fmap simplify)
-                                (gen/such-that #(not= % [:none])))
-                   points (gen/fmap
-                            distinct
-                            (gen/vector
-                             (gen/tuple (gen-float 0 1) (gen-float 0 1))
-                             2 100))]
-      (when (zero? (rem (swap! n inc) 1e6))
-        (println (str (/ @n 1e6) "M")))
-      #_(prn descriptor)
-      (let [^Region2 r     (parse descriptor)
-            invalid-points (->> points
-                             (remove
-                               (fn [[x y]]
-                                 (let [v (Vec2. x y)]
-                                   (if-let [expected (test-point descriptor v)]
-                                     (->> (spread v (/ 0.1 resolution))
-                                       (some #(= expected (.contains r %)))
-                                       boolean)
-                                     true)))))]
-        (< (count invalid-points) 2)))))
+    (let [cnt      (atom 0)
+          property (valid-set-operation depth)
+          executor (Executors/newFixedThreadPool threads
+                     (reify ThreadFactory
+                       (newThread [_ f]
+                         (doto (Thread. f)
+                           (.setPriority Thread/MIN_PRIORITY)))))
+          reporter (fn [{:keys [type] :as report}]
+                     (when (or (identical? type :shrunk) (identical? type :complete))
+                       (println (str (/ (swap! cnt + (:num-tests report)) 1e6) "M")))
+
+                     (when (identical? type :shrunk)
+                       (prn report)))]
+
+      (dotimes [_ (/ n chunk-size)]
+        (.submit executor ^Runnable
+          #(tc/quick-check chunk-size property :reporter-fn reporter)))
+
+      (.shutdown executor)
+      (try
+        (.awaitTermination executor 30 TimeUnit/DAYS)
+        (catch Throwable e
+          (.shutdownNow executor))))))
