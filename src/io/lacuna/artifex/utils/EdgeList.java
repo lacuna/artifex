@@ -4,12 +4,8 @@ import io.lacuna.artifex.*;
 import io.lacuna.bifurcan.*;
 
 import java.util.Iterator;
-import java.util.Objects;
-import java.util.function.IntPredicate;
 
 import static io.lacuna.artifex.Vec.vec;
-import static io.lacuna.artifex.utils.Scalars.EPSILON;
-import static io.lacuna.artifex.utils.Scalars.angleEquals;
 
 /**
  * An implementation of a doubly-connected edge list.  Since this is an inherently mutable data structure, it is
@@ -83,7 +79,7 @@ public class EdgeList {
 
   // a potentially redundant list of edges on different faces, which will be cleaned up if we ever iterate over them
   private final LinearSet<HalfEdge> pseudoFaces = new LinearSet<>();
-  private boolean invalidated = false;
+  private boolean dirty = false;
 
   public EdgeList() {
   }
@@ -95,7 +91,7 @@ public class EdgeList {
   }
 
   public IList<HalfEdge> faces() {
-    if (invalidated) {
+    if (dirty) {
       for (int i = 0; i < pseudoFaces.size(); i++) {
         HalfEdge e = pseudoFaces.nth(i);
 
@@ -109,7 +105,7 @@ public class EdgeList {
           curr = curr.next;
         }
       }
-      invalidated = false;
+      dirty = false;
     }
 
     return LinearList.from(pseudoFaces.elements());
@@ -119,7 +115,7 @@ public class EdgeList {
 
   private void registerFace(HalfEdge e) {
     pseudoFaces.add(e).add(e.twin);
-    invalidated = true;
+    dirty = true;
   }
 
   private void insert(HalfEdge src, HalfEdge e) {

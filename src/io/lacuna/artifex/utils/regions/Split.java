@@ -15,6 +15,11 @@ import static java.lang.Math.max;
 
 public class Split {
 
+  /**
+   * A union-join implementation that will group together chains of intersection points that are sufficiently close
+   * to at least one other vertex in the chain.  This avoids the bevy of problems that arise from infinitesimal curve
+   * segments by shrinking them out of existence.
+   */
   static class VertexUnion {
 
     private final IMap<Vec2, Vec2> parent = new LinearMap<>();
@@ -75,8 +80,13 @@ public class Split {
     }
   }
 
+  /**
+   * Given two regions, returns the regions with new curve endpoints where they intersect, and a set describing those
+   * new vertices.
+   */
   public static Result split(Region2 a, Region2 b) {
 
+    // maintain a separate sweep queue for each region
     SweepQueue<Curve2>[] queues = new SweepQueue[]{new SweepQueue(), new SweepQueue()};
 
     add(a, queues[0]);
@@ -87,6 +97,7 @@ public class Split {
 
     Curve2[] cs = new Curve2[2];
     for (; ; ) {
+      // find which region has the next endpoint, and consume that curve
       int idx = SweepQueue.next(queues);
       cs[idx] = queues[idx].take();
 
@@ -94,6 +105,7 @@ public class Split {
         break;
       }
 
+      // check for intersections against all other "active" curves
       intersections.put(cs[idx], new DoubleAccumulator());
 
       for (Curve2 c : queues[1 - idx].active()) {
@@ -105,6 +117,7 @@ public class Split {
           double t0 = ts[i].x;
           double t1 = ts[i].y;
 
+          // register the intersection, and join the intersection points on each curve so that they exactly coincide
           intersections.get(cs[0]).get().add(t0);
           intersections.get(cs[1]).get().add(t1);
 
@@ -131,6 +144,10 @@ public class Split {
         .toArray(Ring2[]::new));
   }
 
+  /**
+   * Given a collection of parametric coordinates on the curve, joins any coordinates which are sufficiently close in
+   * parametric or cartesian space, and registers that join such that they're transitive.
+   */
   private static DoubleAccumulator dedupe(Curve2 c, DoubleAccumulator acc, VertexUnion union) {
 
     double[] ts = acc.toArray();
@@ -154,6 +171,10 @@ public class Split {
     return result;
   }
 
+  /**
+   * Given a ring of curves, and parametric coordinates describing where they should be split, returns a new ring that
+   * is split at those coordinates.
+   */
   private static Ring2 split(Ring2 r, IMap<Curve2, DoubleAccumulator> splits, VertexUnion union) {
     IList<Curve2> curves = new LinearList<>();
     for (Curve2 c : r.curves) {

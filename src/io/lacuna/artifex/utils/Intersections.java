@@ -24,9 +24,8 @@ import static java.lang.Math.*;
 public class Intersections {
 
   // utilities
-
-  public static final double FAT_LINE_PARAMETRIC_RESOLUTION = 1e-7;
   public static final double FAT_LINE_SPATIAL_EPSILON = 1e-6;
+  public static final double FAT_LINE_PARAMETRIC_RESOLUTION = 1e-7;
 
   public static final double PARAMETRIC_EPSILON = 1e-6;
   public static final double SPATIAL_EPSILON = 1e-10;
@@ -596,6 +595,7 @@ public class Intersections {
     Vec2 c = q.p0;
 
     Vec2 dir = p.end().sub(p.start());
+    double dLen = dir.length();
     Vec2 n = vec(-dir.y, dir.x);
 
     double[] roots = Equations.solveQuadratic(
@@ -604,20 +604,13 @@ public class Intersections {
       dot(n, c) + cross(p.start(), p.end()));
 
     Vec2[] result = new Vec2[roots.length];
-    if (Scalars.equals(dir.x, 0, EPSILON)) {
-      double y0 = p.start().y;
-      for (int i = 0; i < roots.length; i++) {
-        double t = roots[i];
-        double y1 = q.position(t).y;
-        result[i] = vec((y1 - y0) / dir.y, t);
-      }
-    } else {
-      double x0 = p.start().x;
-      for (int i = 0; i < roots.length; i++) {
-        double t = roots[i];
-        double x1 = q.position(t).x;
-        result[i] = vec((x1 - x0) / dir.x, t);
-      }
+    for (int i = 0; i < roots.length; i++) {
+      double t = roots[i];
+      Vec2 v = q.position(t).sub(p.start());
+      double vLen = v.length();
+      double s = (vLen / dLen) * signum(dot(dir, v));
+
+      result[i] = vec(s, t);
     }
 
     return result;

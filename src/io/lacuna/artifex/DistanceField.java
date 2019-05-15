@@ -2,7 +2,9 @@ package io.lacuna.artifex;
 
 import io.lacuna.bifurcan.IMap;
 import io.lacuna.bifurcan.LinearMap;
+import io.lacuna.lux.util.Images;
 
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -81,7 +83,7 @@ public class DistanceField {
     return median(pixel.x, pixel.y, pixel.z) < 0 ? Vec3.ORIGIN : vec(1, 1, 1);
   }
 
-  public Vec3 pixel(int x, int y, float scale) {
+  public Vec3 pixel(int x, int y, double scale) {
     float[] colors = field[x][y];
     return new Vec3(colors[0], colors[1], colors[2]).div(scale / 2).add(0.5).clamp(0, 1);
   }
@@ -370,15 +372,5 @@ public class DistanceField {
         }
       }
     }
-  }
-
-  private static boolean insideRing2s(List<Path2> rings, Vec2 point) {
-    return rings.stream()
-      .flatMap(rs -> Arrays.stream(rs.curves()))
-      .map(c -> new SignedDistance(c, point))
-      .sorted()
-      .findFirst()
-      .get()
-      .inside;
   }
 }
