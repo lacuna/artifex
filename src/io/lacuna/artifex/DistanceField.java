@@ -2,11 +2,8 @@ package io.lacuna.artifex;
 
 import io.lacuna.bifurcan.IMap;
 import io.lacuna.bifurcan.LinearMap;
-import io.lacuna.lux.util.Images;
 
-import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 

@@ -150,8 +150,8 @@ public class Clip {
   private enum Type {
     OUTSIDE,
     INSIDE,
-    SAME_EDGE,
-    DIFF_EDGE
+    SAME_EDGE, // coinciding in the same direction
+    DIFF_EDGE // coinciding in different directions
   }
 
   private static boolean isTop(Curve2 c) {

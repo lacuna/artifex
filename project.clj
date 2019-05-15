@@ -1,5 +1,5 @@
 (defproject io.lacuna/artifex "0.1.0-alpha1"
-  :dependencies [[io.lacuna/bifurcan "0.1.0-alpha6"]]
+  :dependencies [[io.lacuna/bifurcan "0.1.0"]]
   :java-source-paths ["src"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [criterium "0.4.3"]
